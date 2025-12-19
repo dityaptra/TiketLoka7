@@ -5,10 +5,10 @@ import Image from 'next/image'; // 1. Import komponen Image
 
 const HeroBackgroundSlider = () => {
   const originalImages = [
-    'https://images.unsplash.com/photo-1537996194471-e657df975ab4?auto=format&fit=crop&w=1920',
-    'https://images.unsplash.com/photo-1596402184320-417e7178b2cd?auto=format&fit=crop&w=1920',
-    'https://images.unsplash.com/photo-1605860632725-fa88d0ce7a07?auto=format&fit=crop&w=1920',
-    'https://plus.unsplash.com/premium_photo-1661876927993-bedb3ab87208?auto=format&fit=crop&w=1920'
+    '/images/herobg/pura.avif',
+    '/images/herobg/candi.avif',
+    '/images/herobg/gunung.avif',
+    '/images/herobg/komodo.avif'
   ];
 
   const images = [...originalImages, originalImages[0]];
@@ -66,7 +66,7 @@ const HeroBackgroundSlider = () => {
               priority={idx === 0} // Optimasi loading untuk gambar pertama saja
             />
             {/* Overlay tetap menggunakan absolute inset-0 */}
-            <div className="absolute inset-0 bg-black/30 z-10" />
+            <div className="absolute inset-0 bg-black/35 z-10" />
           </div>
         ))}
       </div>
