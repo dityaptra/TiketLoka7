@@ -553,7 +553,7 @@ export default function EditDestinationPage() {
       {fullDestinationData && (
         <div className="space-y-12 mt-10">
           {/* FEATURE MANAGER (Fasilitas) */}
-          <div className="border-t border-gray-200 pt-8">
+          <div className="border-t border-gray-200 pt-8 text-gray-800">
             <FeatureManager
               destinationId={fullDestinationData.id}
               inclusions={fullDestinationData.inclusions || []}

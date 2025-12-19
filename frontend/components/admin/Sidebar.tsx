@@ -5,11 +5,14 @@ import { usePathname } from "next/navigation";
 import { LayoutDashboard, Map, ShoppingBag, Tag, LogOut } from "lucide-react";
 import Image from "next/image";
 import { useAuth } from "@/context/AuthContext";
-import Swal from "sweetalert2"; // 1. Import SweetAlert
+import Swal from "sweetalert2";
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const { user, logout } = useAuth(); // Ambil data user & fungsi logout asli
+  
+  // Mengambil user dan logout dari Context
+  // Pastikan AuthContext Anda sudah memiliki tipe data untuk 'user'
+  const { user, logout } = useAuth();
 
   const menuItems = [
     { name: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
@@ -18,24 +21,29 @@ export default function Sidebar() {
     { name: "Transaksi", href: "/admin/bookings", icon: ShoppingBag },
   ];
 
-  // 2. Buat fungsi handleLogout dengan SweetAlert
   const handleLogout = () => {
     Swal.fire({
       title: "Keluar Aplikasi?",
       text: "Anda harus login kembali untuk mengakses halaman admin.",
       icon: "warning",
       showCancelButton: true,
-      confirmButtonColor: "#d33", // Warna merah untuk aksi keluar
-      cancelButtonColor: "#3085d6", // Warna biru untuk batal
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
       confirmButtonText: "Ya, Keluar",
       cancelButtonText: "Batal",
-      reverseButtons: true, // Posisi tombol dibalik (Batal di kiri, Ya di kanan)
+      reverseButtons: true,
     }).then((result) => {
       if (result.isConfirmed) {
-        // Panggil fungsi logout dari context jika user menekan "Ya"
         logout();
       }
     });
+  };
+
+  // Helper untuk inisial nama dengan Type Annotation
+  // Menerima string, null, atau undefined
+  const getInitial = (name?: string | null): string => {
+    if (!name) return "A";
+    return name.charAt(0).toUpperCase();
   };
 
   return (
@@ -48,6 +56,7 @@ export default function Sidebar() {
             alt="Logo TiketLoka"
             fill
             className="object-contain"
+            priority
           />
         </div>
       </div>
@@ -56,6 +65,7 @@ export default function Sidebar() {
       <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
         {menuItems.map((item) => {
           const isActive = pathname.startsWith(item.href);
+          const Icon = item.icon; // Assign ke variabel kapital agar bisa dirender sebagai komponen
 
           return (
             <Link
@@ -67,7 +77,7 @@ export default function Sidebar() {
                   : "text-gray-600 hover:bg-gray-50 hover:text-[#0B2F5E]"
               }`}
             >
-              <item.icon
+              <Icon
                 size={20}
                 className={
                   isActive
@@ -85,22 +95,26 @@ export default function Sidebar() {
       <div className="p-4 border-t border-gray-100 bg-gray-50/50">
         {/* Profil Card Kecil */}
         <div className="flex items-center gap-3 mb-4 px-2">
-          <div className="w-10 h-10 bg-[#F57C00] rounded-full flex items-center justify-center text-white font-bold text-sm shadow-sm border-2 border-white">
-            {user?.name?.charAt(0).toUpperCase() || "A"}
+          {/* Avatar */}
+          <div className="w-10 h-10 bg-[#F57C00] rounded-full flex items-center justify-center text-white font-bold text-sm shadow-sm border-2 border-white shrink-0">
+            {getInitial(user?.name)}
           </div>
+          
+          {/* Info User */}
           <div className="overflow-hidden">
-            <p className="text-sm font-bold text-gray-800 truncate">
+            <p className="text-sm font-bold text-gray-800 truncate" title={user?.name || "Admin"}>
+              {/* Optional Chaining (?.) sangat penting di TS jika user bisa null */}
               {user?.name || "Admin"}
             </p>
             <p className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold">
-              Admin
+              Administrator
             </p>
           </div>
         </div>
 
-        {/* Tombol Logout (Gunakan handleLogout) */}
+        {/* Tombol Logout */}
         <button
-          onClick={handleLogout} // 3. Ganti logout dengan handleLogout
+          onClick={handleLogout}
           className="flex items-center justify-center gap-2 px-4 py-2.5 w-full rounded-lg text-xs font-bold text-red-600 bg-white border border-gray-200 hover:bg-red-50 hover:border-red-200 transition-all shadow-sm"
         >
           <LogOut size={16} />
