@@ -96,6 +96,19 @@ class BookingController extends Controller
         });
     }
 
+    public function adminIndex(Request $request)
+    {
+
+        $perPage = $request->input('per_page', 10); // Default 10 jika tidak ada parameter
+
+        // Ambil semua booking dengan relasi user dan detail destinasi
+        $bookings = Booking::with(['user', 'details.destination'])
+            ->latest() // Urutkan dari yang terbaru
+            ->paginate($perPage);
+
+        return response()->json($bookings);
+    }
+
     /**
      * FITUR BELI LANGSUNG
      */
