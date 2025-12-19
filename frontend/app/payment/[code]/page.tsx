@@ -11,8 +11,9 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { QRCodeSVG } from 'qrcode.react';
+import Swal from 'sweetalert2';
 
-// --- 1. UPDATE INTERFACE SESUAI STRUKTUR DATABASE ---
+// --- 1. DEFINISI INTERFACE ---
 interface AddonDetail {
     id: number;
     name: string;
@@ -22,13 +23,15 @@ interface AddonDetail {
 interface BookingItem {
     id: number;
     quantity: number;
-    price: number; // Harga tiket saat booking
+    price: number; // Harga unit tiket
+    subtotal: number;
     destination: {
         name: string;
         location: string;
         price: number;
+        addons?: AddonDetail[]; // Master data addons untuk lookup
     };
-    addons: any; // Bisa string JSON atau array object
+    addons: any; // Bisa JSON string "[1,2]" atau array [1,2]
 }
 
 interface BookingDetail {
@@ -38,7 +41,7 @@ interface BookingDetail {
     status: 'pending' | 'paid' | 'cancelled';
     payment_method: string; 
     created_at: string;
-    details: BookingItem[]; // Rincian item dalam booking
+    details: BookingItem[]; // Rincian tiket dalam pesanan
     qris_string?: string; 
 }
 
@@ -54,6 +57,7 @@ export default function PaymentPage() {
 
     const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
+    // --- FETCH DATA ---
     const fetchBooking = useCallback(async () => {
         try {
             const res = await fetch(`${BASE_URL}/api/bookings/${params.code}`, {
@@ -83,6 +87,45 @@ export default function PaymentPage() {
         if (token) fetchBooking();
     }, [token, fetchBooking]);
 
+    // --- KALKULASI RINCIAN HARGA (TIKET + ADDONS) ---
+    const priceBreakdown = useMemo(() => {
+        if (!booking || !booking.details) return [];
+        
+        return booking.details.map(item => {
+            const qty = Number(item.quantity) || 0;
+            const ticketPrice = Number(item.price || item.destination.price);
+            
+            // Parsing Addon yang dipilih
+            let selectedAddonIds: any[] = [];
+            try {
+                selectedAddonIds = Array.isArray(item.addons) 
+                    ? item.addons 
+                    : JSON.parse(item.addons || "[]");
+            } catch (e) { selectedAddonIds = []; }
+
+            const selectedIdsString = selectedAddonIds.map(String);
+
+            // Lookup Nama & Harga Addon
+            const masterAddons = item.destination.addons || [];
+            const selectedAddonData = masterAddons.filter((a: any) => 
+                selectedIdsString.includes(String(a.id))
+            );
+
+            // Gunakan subtotal dari DB jika tersedia, jika tidak hitung manual
+            const finalItemTotal = Number(item.subtotal) > 0 
+                ? Number(item.subtotal) 
+                : (ticketPrice + selectedAddonData.reduce((s, a) => s + Number(a.price), 0)) * qty;
+
+            return {
+                name: item.destination.name,
+                qty,
+                addons: selectedAddonData,
+                itemTotal: finalItemTotal
+            };
+        });
+    }, [booking]);
+
+    // --- TIMER ---
     useEffect(() => {
         if (!booking || booking.status !== 'pending') return;
         const timer = setInterval(() => {
@@ -97,32 +140,7 @@ export default function PaymentPage() {
         return `${m}:${s < 10 ? '0' : ''}${s}`;
     };
 
-    // --- KALKULASI RINCIAN HARGA ---
-    const priceBreakdown = useMemo(() => {
-        if (!booking) return [];
-        return booking.details.map(item => {
-            const qty = Number(item.quantity);
-            const ticketPrice = Number(item.price || item.destination.price);
-            
-            // Parsing Addons
-            let selectedAddons: AddonDetail[] = [];
-            try {
-                selectedAddons = Array.isArray(item.addons) ? item.addons : JSON.parse(item.addons || "[]");
-            } catch (e) { selectedAddons = []; }
-
-            const totalAddonPrice = selectedAddons.reduce((sum, a) => sum + Number(a.price), 0);
-            
-            return {
-                name: item.destination.name,
-                qty,
-                ticketSubtotal: ticketPrice * qty,
-                addons: selectedAddons,
-                addonSubtotal: totalAddonPrice * qty,
-                itemTotal: (ticketPrice + totalAddonPrice) * qty
-            };
-        });
-    }, [booking]);
-
+    // --- ACTIONS ---
     const handleCheckStatus = async () => {
         setProcessing(true);
         try {
@@ -147,7 +165,20 @@ export default function PaymentPage() {
     };
 
     const handleCancelOrder = async () => {
-        if (!confirm("Yakin ingin membatalkan pesanan?")) return;
+        const result = await Swal.fire({
+            title: 'Batalkan Pesanan?',
+            text: "Pesanan yang dibatalkan tidak dapat dikembalikan.",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Ya, Batalkan',
+            cancelButtonText: 'Tidak',
+            reverseButtons: true
+        });
+
+        if (!result.isConfirmed) return;
+
         setProcessing(true);
         try {
             const res = await fetch(`${BASE_URL}/api/bookings/${booking?.booking_code}/cancel`, {
@@ -155,11 +186,13 @@ export default function PaymentPage() {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (res.ok) {
-                toast.success("Pesanan dibatalkan");
+                toast.success("Pesanan berhasil dibatalkan");
                 setBooking(prev => prev ? { ...prev, status: 'cancelled' } : null);
+            } else {
+                toast.error("Gagal membatalkan pesanan");
             }
         } catch (error) {
-            toast.error("Error server");
+            toast.error("Terjadi kesalahan server");
         } finally {
             setProcessing(false);
         }
@@ -174,6 +207,7 @@ export default function PaymentPage() {
     if (!booking) return null;
 
     const isQRIS = booking.payment_method === 'qris';
+    const bankAccount = "8277 1234 5678"; 
 
     return (
         <div className="min-h-screen bg-[#F8F9FA] font-sans pb-20">
@@ -186,8 +220,7 @@ export default function PaymentPage() {
 
                 {booking.status === 'pending' && (
                     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                        
-                        <div className="bg-orange-50 border border-orange-100 rounded-2xl p-5 flex items-center justify-between mb-6">
+                        <div className="bg-orange-50 border border-orange-100 rounded-2xl p-5 flex items-center justify-between mb-6 shadow-sm">
                             <div className="flex items-center gap-4">
                                 <Clock className="text-[#F57C00] w-6 h-6" />
                                 <div>
@@ -204,7 +237,7 @@ export default function PaymentPage() {
                                 <p className="text-sm text-blue-100 mb-1">Total Tagihan</p>
                                 <div className="flex items-center justify-center gap-2">
                                     <h1 className="text-4xl font-extrabold">Rp {(booking.grand_total || 0).toLocaleString('id-ID')}</h1>
-                                    <button onClick={() => copyToClipboard(String(booking.grand_total))} className="p-1.5 hover:bg-white/10 rounded-lg"><Copy size={18}/></button>
+                                    <button onClick={() => copyToClipboard(String(booking.grand_total))} className="p-1.5 hover:bg-white/10 rounded-lg transition"><Copy size={18}/></button>
                                 </div>
                                 <p className="mt-4 text-xs opacity-60">ID Pesanan: {booking.booking_code}</p>
                             </div>
@@ -213,17 +246,16 @@ export default function PaymentPage() {
                             <div className="p-6 border-b border-gray-100 bg-gray-50/50">
                                 <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Rincian Pesanan</h3>
                                 {priceBreakdown.map((item, i) => (
-                                    <div key={i} className="space-y-2 mb-4 last:mb-0">
+                                    <div key={i} className="mb-4 last:mb-0">
                                         <div className="flex justify-between items-start">
                                             <div>
                                                 <p className="font-bold text-gray-800 text-sm">{item.name}</p>
-                                                <p className="text-[10px] text-gray-500">{item.qty} Tiket x Rp {item.itemTotal/item.qty ? (item.itemTotal/item.qty).toLocaleString('id-ID') : 0}</p>
+                                                <p className="text-[10px] text-gray-400">{item.qty} Tiket</p>
                                             </div>
                                             <p className="text-sm font-bold text-gray-800">Rp {item.itemTotal.toLocaleString('id-ID')}</p>
                                         </div>
-                                        {/* List Addons kecil di bawah tiket */}
                                         {item.addons.map((a: any, idx: number) => (
-                                            <div key={idx} className="flex justify-between text-[10px] text-gray-400 pl-4 border-l-2 border-gray-200">
+                                            <div key={idx} className="flex justify-between text-[10px] text-orange-600 pl-4 border-l border-orange-200 mt-1">
                                                 <span>+ {a.name}</span>
                                                 <span>Rp {(Number(a.price) * item.qty).toLocaleString('id-ID')}</span>
                                             </div>
@@ -240,18 +272,18 @@ export default function PaymentPage() {
                                                 <ScanLine className="w-5 h-5 text-[#0B2F5E]"/> Scan QRIS
                                             </h3>
                                         </div>
-                                        <div className="bg-white p-4 rounded-3xl border-2 border-dashed border-gray-300 mb-8">
+                                        <div className="bg-white p-4 rounded-3xl border-2 border-dashed border-gray-300 mb-8 transition-all hover:border-[#0B2F5E]">
                                             <QRCodeSVG value={booking.qris_string || `TIKETLOKA-${booking.booking_code}`} size={200} level="H" includeMargin={true} />
                                         </div>
                                     </>
                                 ) : (
-                                    <div className="w-full bg-blue-50 p-6 rounded-2xl mb-8">
+                                    <div className="w-full bg-blue-50 p-6 rounded-2xl mb-8 border border-blue-100">
                                         <p className="text-xs font-bold text-blue-600 uppercase mb-1">Transfer BCA</p>
                                         <div className="flex items-center gap-3 mb-4">
-                                            <p className="font-mono text-2xl font-bold text-[#0B2F5E]">8277 1234 5678</p>
-                                            <button onClick={() => copyToClipboard("827712345678")} className="p-2 bg-white rounded-lg shadow-sm text-blue-600"><Copy size={16}/></button>
+                                            <p className="font-mono text-2xl font-bold text-[#0B2F5E]">{bankAccount}</p>
+                                            <button onClick={() => copyToClipboard(bankAccount.replace(/\s/g, ''))} className="p-2 bg-white rounded-lg shadow-sm text-blue-600"><Copy size={16}/></button>
                                         </div>
-                                        <p className="text-[10px] text-gray-500">A/N PT TIKETLOKA INDONESIA</p>
+                                        <p className="text-[10px] text-gray-500 italic">A/N PT TIKETLOKA INDONESIA</p>
                                     </div>
                                 )}
 
@@ -260,8 +292,8 @@ export default function PaymentPage() {
                                         {processing ? <Loader2 className="animate-spin w-5 h-5"/> : <CheckCircle2 className="w-5 h-5"/>}
                                         Konfirmasi Pembayaran
                                     </button>
-                                    <button onClick={handleCancelOrder} disabled={processing} className="w-full bg-white border border-gray-200 text-gray-400 font-bold py-4 rounded-xl hover:text-red-500 transition-all">
-                                        Batalkan Pesanan
+                                    <button onClick={handleCancelOrder} disabled={processing} className="w-full bg-white border border-gray-200 text-gray-400 font-bold py-4 rounded-xl hover:text-red-500 hover:border-red-100 transition-all flex items-center justify-center gap-2">
+                                        <XCircle size={18}/> Batalkan Pesanan
                                     </button>
                                 </div>
                             </div>
@@ -270,10 +302,11 @@ export default function PaymentPage() {
                 )}
 
                 {booking.status === 'cancelled' && (
-                    <div className="text-center py-24 bg-white rounded-3xl border">
+                    <div className="text-center py-24 bg-white rounded-3xl border border-gray-100 shadow-sm animate-in zoom-in-95">
                         <XCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-                        <h2 className="text-2xl font-bold mb-8">Pesanan Dibatalkan</h2>
-                        <button onClick={() => router.push('/')} className="bg-[#0B2F5E] text-white px-8 py-3 rounded-xl font-bold">Kembali Jelajah</button>
+                        <h2 className="text-2xl font-bold text-gray-900 mb-2">Pesanan Dibatalkan</h2>
+                        <p className="text-gray-500 mb-8">Pesanan ini tidak dapat diproses lebih lanjut.</p>
+                        <button onClick={() => router.push('/')} className="bg-[#0B2F5E] text-white px-8 py-3.5 rounded-xl font-bold shadow-lg">Kembali Jelajah</button>
                     </div>
                 )}
             </div>

@@ -3,14 +3,10 @@
 import { useState } from 'react';
 import { 
   ChevronDown, 
-  MessageCircle, 
-  Mail, 
-  Phone, 
   Search, 
   Ticket, 
   CreditCard, 
   AlertCircle,
-  ArrowRight,
   HelpCircle
 } from 'lucide-react';
 import Link from 'next/link';
