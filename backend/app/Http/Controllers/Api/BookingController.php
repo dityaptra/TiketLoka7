@@ -96,19 +96,6 @@ class BookingController extends Controller
         });
     }
 
-    public function adminIndex(Request $request)
-    {
-
-        $perPage = $request->input('per_page', 10); // Default 10 jika tidak ada parameter
-
-        // Ambil semua booking dengan relasi user dan detail destinasi
-        $bookings = Booking::with(['user', 'details.destination'])
-            ->latest() // Urutkan dari yang terbaru
-            ->paginate($perPage);
-
-        return response()->json($bookings);
-    }
-
     /**
      * FITUR BELI LANGSUNG
      */
@@ -179,6 +166,29 @@ class BookingController extends Controller
             ->get();
 
         return response()->json(['data' => $bookings]);
+    }
+
+    public function adminIndex(Request $request)
+    {
+        try {
+            $query = Booking::with(['user', 'details.destination']);
+
+            // Tambahkan Logika Filter
+            if ($request->filled('status')) {
+                $query->where('status', $request->status);
+            }
+            if ($request->filled('search')) {
+                $query->where('booking_code', 'like', "%{$request->search}%")
+                    ->orWhereHas('user', function($u) use ($request) {
+                        $u->where('name', 'like', "%{$request->search}%");
+                    });
+            }
+
+            return response()->json($query->latest()->paginate($request->per_page ?? 10));
+        } catch (\Exception $e) {
+            // PERBAIKAN: Kirim JSON error, jangan biarkan Laravel kirim HTML Error 500
+            return response()->json(['message' => 'Terjadi kesalahan pada server'], 500);
+        }
     }
 
     public function show($booking_code)

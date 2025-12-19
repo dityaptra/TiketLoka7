@@ -55,8 +55,8 @@ export const metadata: Metadata = {
 
   // 8. Ikon Aplikasi
   icons: {
-    icon: "/favicon.ico",
-    shortcut: "/favicon-16x16.png",
+    icon: "/icon.png",
+    shortcut: "/icon-16x16.png",
     apple: "/apple-touch-icon.png",
   },
 };
