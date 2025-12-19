@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { 
     Trash2, Calendar, MapPin, Loader2, ShoppingCart, ArrowLeft, 
     Ticket, CheckSquare, Square, Wallet, ShieldCheck, 
-    ScanLine, Building2 // Icon tambahan untuk pembayaran
+    ScanLine, Building2 
 } from 'lucide-react'; 
 import { CartItem } from '@/types';
 import { useRouter } from 'next/navigation';
@@ -14,6 +14,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useCartContext } from '@/context/CartContext'; 
 import { useNotification } from '@/context/NotificationContext'; 
 import toast from 'react-hot-toast';
+import Swal from 'sweetalert2'; // IMPORT SWEETALERT
 
 export default function CartPage() {
   const router = useRouter();
@@ -28,19 +29,18 @@ export default function CartPage() {
   
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   
-  // --- FITUR BARU: PAYMENT METHOD STATE ---
+  // --- STATE PAYMENT ---
   const [paymentMethod, setPaymentMethod] = useState('qris'); 
   const [isCheckingOut, setIsCheckingOut] = useState(false);
 
   // KONFIGURASI URL API
   const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
-  // --- FUNGSI HELPER UNTUK GAMBAR ---
+  // --- FUNGSI HELPER GAMBAR ---
   const getImageUrl = (url: string | null) => {
     if (!url) return 'https://images.unsplash.com/photo-1596423348633-8472df3b006c?auto=format&fit=crop&w=800';
     if (url.startsWith('http')) return url;
     const cleanPath = url.startsWith('/') ? url.substring(1) : url;
-    // Cek path storage
     if (cleanPath.startsWith('storage/')) {
         return `${BASE_URL}/${cleanPath}`;
     }
@@ -73,7 +73,7 @@ export default function CartPage() {
     fetchCart();
   }, [token, authLoading, router, BASE_URL]);
 
-  // Helper untuk Checkbox
+  // Helper Checkbox
   const toggleSelect = (id: number) => {
     if (selectedIds.includes(id)) {
       setSelectedIds(selectedIds.filter(item => item !== id));
@@ -91,9 +91,31 @@ export default function CartPage() {
     }
   };
 
-  // 2. Fungsi Hapus Item
+  // 2. Kalkulasi Total (Dipindah ke atas agar bisa dipakai di handleCheckout)
+  const { totalQty, subTotal, grandTotal } = useMemo(() => {
+    const selectedItems = carts.filter(item => selectedIds.includes(item.id));
+    const totalQty = selectedItems.reduce((sum, item) => sum + item.quantity, 0);
+    const subTotal = selectedItems.reduce((sum, item) => sum + item.total_price, 0);
+    return { totalQty, subTotal, grandTotal: subTotal };
+  }, [carts, selectedIds]);
+
+
+  // 3. Fungsi Hapus Item (DENGAN SWEETALERT)
   const handleDelete = async (id: number) => {
-    if(!confirm('Hapus item ini?')) return; 
+    // --- SWEETALERT CONFIRM DELETE ---
+    const result = await Swal.fire({
+        title: 'Hapus Item?',
+        text: "Item ini akan dihapus permanen dari keranjang.",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: 'Ya, Hapus',
+        cancelButtonText: 'Batal',
+        reverseButtons: true
+    });
+
+    if (!result.isConfirmed) return;
     
     try {
       await fetch(`${BASE_URL}/api/cart/${id}`, { 
@@ -112,17 +134,30 @@ export default function CartPage() {
     }
   };
 
-  // 3. Kalkulasi Total
-  const { totalQty, subTotal, grandTotal } = useMemo(() => {
-    const selectedItems = carts.filter(item => selectedIds.includes(item.id));
-    const totalQty = selectedItems.reduce((sum, item) => sum + item.quantity, 0);
-    const subTotal = selectedItems.reduce((sum, item) => sum + item.total_price, 0);
-    return { totalQty, subTotal, grandTotal: subTotal };
-  }, [carts, selectedIds]);
-
-  // 4. Logic Checkout
+  // 4. Logic Checkout (DENGAN SWEETALERT)
   const handleCheckout = async () => {
     if (selectedIds.length === 0) return toast.error('Pilih minimal 1 item!');
+
+    // --- SWEETALERT CONFIRM CHECKOUT ---
+    const result = await Swal.fire({
+        title: 'Konfirmasi Pesanan',
+        html: `
+            <div class="text-left text-sm">
+                <p>Anda akan membeli <b>${totalQty} tiket</b></p>
+                <p>Total Tagihan: <b style="color:#F57C00; font-size: 1.1em">Rp ${grandTotal.toLocaleString('id-ID')}</b></p>
+                <p class="mt-2 text-gray-500">Metode: ${paymentMethod === 'qris' ? 'QRIS (Instant)' : 'Bank Transfer (BCA)'}</p>
+            </div>
+        `,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#0B2F5E',
+        cancelButtonColor: '#d33',
+        confirmButtonText: 'Ya, Lanjut Bayar',
+        cancelButtonText: 'Cek Lagi',
+        reverseButtons: true
+    });
+
+    if (!result.isConfirmed) return;
     
     setIsCheckingOut(true);
     try {
@@ -132,7 +167,6 @@ export default function CartPage() {
             'Content-Type': 'application/json', 
             'Authorization': `Bearer ${token}`
         },
-        // Kirim payment_method yang dipilih user
         body: JSON.stringify({ cart_ids: selectedIds, payment_method: paymentMethod })
       });
 
@@ -253,7 +287,7 @@ export default function CartPage() {
               ))}
             </div>
 
-            {/* --- SUMMARY SECTION (WITH PAYMENT METHOD) --- */}
+            {/* --- SUMMARY SECTION --- */}
             <div className="hidden lg:block lg:w-96">
                 <div className="bg-white p-6 rounded-2xl shadow-xl shadow-gray-200/50 border border-gray-100 sticky top-28">
                     <h3 className="text-lg font-bold text-[#0B2F5E] mb-6 flex items-center gap-2">
@@ -334,7 +368,7 @@ export default function CartPage() {
                 </div>
             </div>
             
-            {/* Mobile Sticky Bar (Simplified) */}
+            {/* Mobile Sticky Bar */}
             <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 lg:hidden z-50">
                 <div className="flex items-center gap-4">
                     <div className="flex-1">

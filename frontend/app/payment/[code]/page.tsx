@@ -9,10 +9,11 @@ import {
     CheckCircle2, XCircle, ChevronLeft, ScanLine, 
     Building2 
 } from 'lucide-react';
-import toast from 'react-hot-toast';
+import toast from 'react-hot-toast'; // Toast untuk notif ringan
 import { QRCodeSVG } from 'qrcode.react';
+import Swal from 'sweetalert2'; // SweetAlert HANYA untuk confirm
 
-// --- 1. UPDATE INTERFACE ---
+// --- INTERFACE ---
 interface BookingDetail {
     id: number;
     booking_code: string;
@@ -37,7 +38,6 @@ export default function PaymentPage() {
     const [processing, setProcessing] = useState(false);
     const [timeLeft, setTimeLeft] = useState(900); 
 
-    // KONFIGURASI URL API
     const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
     // --- FETCH DATA ---
@@ -92,10 +92,11 @@ export default function PaymentPage() {
     };
 
     // --- ACTIONS ---
+
+    // 1. CEK STATUS (Tetap Pakai TOAST)
     const handleCheckStatus = async () => {
         setProcessing(true);
         try {
-            // Simulasi Bayar Sukses via API Backend
             const res = await fetch(`${BASE_URL}/api/bookings/${booking?.booking_code}/pay`, {
                 method: 'POST',
                 headers: { 
@@ -118,22 +119,41 @@ export default function PaymentPage() {
         }
     };
 
+    // 2. BATALKAN PESANAN (SweetAlert Confirm + Toast Result)
     const handleCancelOrder = async () => {
-        if (!confirm("Yakin ingin membatalkan pesanan ini?")) return;
+        // --- STEP 1: KONFIRMASI DENGAN SWEETALERT ---
+        const result = await Swal.fire({
+            title: 'Batalkan Pesanan?',
+            text: "Apakah Anda yakin? Pesanan yang dibatalkan tidak dapat dikembalikan.",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33', // Merah untuk bahaya
+            cancelButtonColor: '#3085d6', // Biru untuk batal
+            confirmButtonText: 'Ya, Batalkan',
+            cancelButtonText: 'Tidak',
+            reverseButtons: true // Tombol batal di kiri (UX lebih aman)
+        });
+
+        // Jika user klik "Tidak" atau klik di luar, hentikan proses
+        if (!result.isConfirmed) return;
+
+        // --- STEP 2: EKSEKUSI API ---
         setProcessing(true);
         try {
             const res = await fetch(`${BASE_URL}/api/bookings/${booking?.booking_code}/cancel`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${token}` }
             });
+            
             if (res.ok) {
-                toast.success("Pesanan dibatalkan");
+                // Notif SUKSES pakai TOAST (sesuai request)
+                toast.success("Pesanan berhasil dibatalkan");
                 setBooking(prev => prev ? { ...prev, status: 'cancelled' } : null);
             } else {
-                toast.error("Gagal membatalkan");
+                toast.error("Gagal membatalkan pesanan");
             }
         } catch (error) {
-            toast.error("Error server");
+            toast.error("Terjadi kesalahan server");
         } finally {
             setProcessing(false);
         }
@@ -147,10 +167,9 @@ export default function PaymentPage() {
     if (loading) return <div className="min-h-screen flex justify-center items-center bg-gray-50"><Loader2 className="animate-spin text-[#0B2F5E] w-10 h-10"/></div>;
     if (!booking) return null;
 
-    // --- VARIABEL UNTUK TAMPILAN DINAMIS ---
     const isQRIS = booking.payment_method === 'qris';
     const bankName = "Bank Central Asia (BCA)";
-    const bankAccount = "8277 1234 5678"; // Nomor Rekening Dummy
+    const bankAccount = "8277 1234 5678"; 
     const bankHolder = "PT TIKETLOKA INDONESIA";
 
     return (
@@ -196,11 +215,10 @@ export default function PaymentPage() {
                                 </div>
                             </div>
 
-                            {/* --- DYNAMIC BODY CONTENT --- */}
+                            {/* --- BODY CONTENT --- */}
                             <div className="p-8 flex flex-col items-center">
                                 
                                 {isQRIS ? (
-                                    // --- TAMPILAN QRIS ---
                                     <>
                                         <div className="text-center mb-8">
                                             <h3 className="font-bold text-gray-900 text-xl flex items-center gap-2 justify-center">
@@ -214,7 +232,6 @@ export default function PaymentPage() {
                                         </div>
                                     </>
                                 ) : (
-                                    // --- TAMPILAN TRANSFER BANK ---
                                     <>
                                         <div className="text-center mb-8">
                                             <h3 className="font-bold text-gray-900 text-xl flex items-center gap-2 justify-center">
@@ -241,7 +258,7 @@ export default function PaymentPage() {
                                     </>
                                 )}
 
-                                {/* Action Buttons (Sama untuk keduanya) */}
+                                {/* Action Buttons */}
                                 <div className="w-full space-y-3">
                                     <button 
                                         onClick={handleCheckStatus} 
@@ -264,7 +281,7 @@ export default function PaymentPage() {
                             </div>
                         </div>
 
-                        {/* Instructions (Dinamis) */}
+                        {/* Instructions */}
                         <div className="mt-6 bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
                             <h4 className="font-bold text-gray-800 mb-4 flex items-center gap-2 text-sm uppercase tracking-wider">
                                 <AlertCircle size={18} className="text-blue-500"/> Cara Pembayaran
