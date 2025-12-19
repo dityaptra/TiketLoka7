@@ -3,6 +3,9 @@ export interface User {
   id: number;
   name: string;
   email: string;
+  // Tambahan wajib agar AuthContext & Middleware berjalan
+  role?: string; 
+  avatar_url?: string;
 }
 
 // --- CATEGORY ---
@@ -10,13 +13,16 @@ export interface Category {
   id: number;
   name: string;
   slug: string;
-  icon?: string; // Opsional: untuk ikon di homepage
+  icon?: string; 
+  image_url?: string; // Fallback jika backend kirim image_url
 }
 
-// --- SUB-INTERFACES (PENTING UNTUK FITUR BARU) ---
+// --- SUB-INTERFACES ---
 export interface DestinationImage {
   id: number;
-  image_path: string;
+  // Support kedua penamaan dari backend agar aman
+  image_path?: string; 
+  image?: string; 
 }
 
 export interface Inclusion {
@@ -39,12 +45,11 @@ export interface Review {
   user: User;
 }
 
-// --- DESTINATION (DIGABUNGKAN) ---
+// --- DESTINATION ---
 export interface Destination {
-  // Field Dasar (Sesuai Request Anda)
   id: number;
   name: string;
-  slug: string; // <--- WAJIB ADA
+  slug: string; 
   location: string;
   image_url: string | null;
   price: number;
@@ -52,12 +57,15 @@ export interface Destination {
   category_id?: number;
   category?: Category; 
   is_active?: boolean | number;
+  
+  // Field Tambahan untuk UI (Jumlah Terjual)
+  sold_count?: number;
 
-  // Field Tambahan (Opsional) - Agar fitur Galeri & Paket berjalan
-  images?: DestinationImage[]; // Galeri Foto
-  inclusions?: Inclusion[];    // Fasilitas Termasuk
-  addons?: Addon[];            // Upgrade Paket
-  reviews?: Review[];          // Ulasan User
+  // Relasi
+  images?: DestinationImage[]; 
+  inclusions?: Inclusion[];    
+  addons?: Addon[]; // Daftar Addon yang TERSEDIA untuk dibeli
+  reviews?: Review[];          
 }
 
 // --- BOOKING ---
@@ -67,23 +75,29 @@ export interface BookingDetail {
   quantity: number;
   visit_date: string;
   subtotal: number;
+  price?: number; // Opsional: harga satuan saat transaksi
   
-  // Tambahan untuk fitur Scan QR
+  // Fitur Scan QR
   ticket_code?: string;
   redeemed_at?: string | null;
+
+  // PENTING: Properti ini WAJIB ADA agar halaman MyTicketsPage tidak error
+  // Menyimpan ID addon yang dipilih user saat booking
+  addons?: string | number[] | null; 
 }
 
 export interface Booking {
   id: number;
   booking_code: string;
   grand_total: number;
-  status: 'pending' | 'success' | 'failed';
+  // Gabungan status backend & frontend logic
+  status: 'pending' | 'success' | 'failed' | 'paid' | 'cancelled'; 
   payment_method: string;
-  paid_at: string;
-  qr_string: string;
+  paid_at?: string | null;
+  qr_string?: string;
   created_at: string;
   details: BookingDetail[];
-  user?: User; // Opsional: Relasi ke pemesan
+  user?: User; 
 }
 
 // --- CART ---
@@ -93,6 +107,16 @@ export interface CartItem {
   destination_id: number;
   quantity: number;
   visit_date: string;
-  total_price: number;
+  total_price: number; // atau subtotal
   destination: Destination;
+  // Menyimpan addon yang dipilih di keranjang
+  addons?: number[]; 
+}
+
+// --- AUTH ---
+export interface LoginResponse {
+  message: string;
+  access_token: string;
+  token_type: string;
+  user: User;
 }

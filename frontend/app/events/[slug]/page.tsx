@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { useCartContext } from '@/context/CartContext'; 
@@ -51,29 +51,19 @@ const getImageUrl = (url: string | null) => {
 
 const formatDate = (date: string) => new Date(date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
 
-// Helper: Nama Hari (Sen, Sel...)
 const getDayName = (date: Date) => date.toLocaleDateString('id-ID', { weekday: 'short' });
 
-// Helper: Format Value API (YYYY-MM-DD)
 const formatDateValue = (date: Date) => {
     const offset = date.getTimezoneOffset();
     const localDate = new Date(date.getTime() - (offset*60*1000));
     return localDate.toISOString().split('T')[0];
 };
 
-// Helper: Cek Hari Libur (Minggu / Tanggal Merah)
 const isHoliday = (date: Date) => {
     const day = date.getDay();
     const dateStr = formatDateValue(date);
-    
-    // 1. Cek Hari Minggu (0)
     if (day === 0) return true;
-
-    // 2. Daftar Tanggal Merah (Manual / Contoh)
-    const publicHolidays = [
-        '2025-12-25', '2025-12-26', '2026-01-01'
-    ];
-    
+    const publicHolidays = ['2025-12-25', '2025-12-26', '2026-01-01'];
     return publicHolidays.includes(dateStr);
 };
 
@@ -110,8 +100,6 @@ export default function EventDetailPage() {
         <main className="min-h-screen bg-white text-gray-800 pb-20 font-sans">
             <Navbar />
             <div className="max-w-7xl mx-auto px-4 pt-24 pb-8">
-                
-                {/* Header & Gallery Wrapper */}
                 <div className="mb-12">
                     <button onClick={() => router.back()} className="text-sm text-gray-500 hover:text-[#0B2F5E] flex items-center gap-2 mb-6 transition font-medium group">
                         <div className="p-2 bg-gray-100 rounded-full group-hover:bg-blue-50 transition-colors"><ArrowLeft className="w-4 h-4"/></div> 
@@ -136,7 +124,6 @@ export default function EventDetailPage() {
                             </div>
                         </div>
                     </div>
-
                     <GallerySection destination={destination} />
                 </div>
                 
@@ -163,10 +150,8 @@ function DetailSkeleton() {
             <div className="h-12 w-3/4 bg-gray-200 rounded mb-8"></div>
             <div className="grid grid-cols-4 gap-2 h-[400px] rounded-3xl overflow-hidden mb-8">
                 <div className="col-span-2 row-span-2 bg-gray-200"></div>
-                <div className="bg-gray-200"></div>
-                <div className="bg-gray-200"></div>
-                <div className="bg-gray-200"></div>
-                <div className="bg-gray-200"></div>
+                <div className="bg-gray-200"></div><div className="bg-gray-200"></div>
+                <div className="bg-gray-200"></div><div className="bg-gray-200"></div>
             </div>
         </div>
     );
@@ -175,65 +160,32 @@ function DetailSkeleton() {
 function GallerySection({ destination }: { destination: Destination }) {
     const [isOpen, setIsOpen] = useState(false);
     const [idx, setIdx] = useState(0);
-
-    const allImages = [
-        { id: 9999, image: destination.image_url }, 
-        ...(destination.images || [])
-    ].filter(img => img.image);
-
+    const allImages = [{ id: 9999, image: destination.image_url }, ...(destination.images || [])].filter(img => img.image);
     const displayImages = allImages.slice(0, 5);
     const remainingCount = allImages.length - 5;
-
-    const getGridClass = (index: number) => {
-        if (index === 0) return 'col-span-4 md:col-span-2 row-span-2 h-[300px] md:h-[460px]';
-        return 'col-span-2 md:col-span-1 row-span-1 h-[145px] md:h-[226px]';
-    };
+    const getGridClass = (index: number) => index === 0 ? 'col-span-4 md:col-span-2 row-span-2 h-[300px] md:h-[460px]' : 'col-span-2 md:col-span-1 row-span-1 h-[145px] md:h-[226px]';
 
     return (
         <>
             <div className="grid grid-cols-4 gap-2 rounded-3xl overflow-hidden shadow-sm relative group bg-gray-50 border border-gray-100 p-1">
                 {displayImages.map((img, i) => (
-                    <div 
-                        key={i} 
-                        onClick={() => { setIdx(i); setIsOpen(true); }} 
-                        className={`relative cursor-pointer overflow-hidden rounded-xl hover:brightness-95 transition duration-300 ${getGridClass(i)}`}
-                    >
-                        <Image 
-                            src={getImageUrl(img.image)} 
-                            alt={`Gallery ${i}`} 
-                            fill 
-                            className="object-cover hover:scale-105 transition duration-700" 
-                            unoptimized 
-                            priority={i === 0}
-                        />
+                    <div key={i} onClick={() => { setIdx(i); setIsOpen(true); }} className={`relative cursor-pointer overflow-hidden rounded-xl hover:brightness-95 transition duration-300 ${getGridClass(i)}`}>
+                        <Image src={getImageUrl(img.image)} alt={`Gallery ${i}`} fill className="object-cover hover:scale-105 transition duration-700" unoptimized priority={i === 0} />
                         {i === 4 && remainingCount > 0 && (
                             <div className="absolute inset-0 bg-black/60 flex items-center justify-center backdrop-blur-[2px] transition hover:bg-black/70">
-                                <span className="text-white font-bold text-lg md:text-xl flex flex-col items-center">
-                                    +{remainingCount} 
-                                    <span className="text-xs font-normal opacity-80">Lainnya</span>
-                                </span>
+                                <span className="text-white font-bold text-lg md:text-xl flex flex-col items-center">+{remainingCount} <span className="text-xs font-normal opacity-80">Lainnya</span></span>
                             </div>
                         )}
                     </div>
                 ))}
-                
-                <button 
-                    onClick={() => { setIdx(0); setIsOpen(true); }}
-                    className="absolute bottom-4 right-4 bg-white/90 hover:bg-white text-[#0B2F5E] px-4 py-2.5 rounded-xl text-sm font-bold shadow-lg flex items-center gap-2 backdrop-blur-sm transition active:scale-95 border border-gray-200"
-                >
-                    <Grid className="w-4 h-4" /> Lihat Semua Foto
-                </button>
+                <button onClick={() => { setIdx(0); setIsOpen(true); }} className="absolute bottom-4 right-4 bg-white/90 hover:bg-white text-[#0B2F5E] px-4 py-2.5 rounded-xl text-sm font-bold shadow-lg flex items-center gap-2 backdrop-blur-sm transition active:scale-95 border border-gray-200"><Grid className="w-4 h-4" /> Lihat Semua Foto</button>
             </div>
-
-            {/* LIGHTBOX */}
             {isOpen && (
                 <div className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center animate-in fade-in duration-200" onClick={() => setIsOpen(false)}>
                     <button onClick={() => setIsOpen(false)} className="absolute top-6 right-6 text-white/80 hover:text-white p-2 z-10 bg-white/10 rounded-full transition"><X className="w-6 h-6"/></button>
                     <button onClick={(e) => { e.stopPropagation(); setIdx((idx - 1 + allImages.length) % allImages.length); }} className="absolute left-4 md:left-8 text-white/80 hover:text-white p-3 z-10 bg-white/10 rounded-full transition hover:bg-white/20"><ChevronLeft className="w-8 h-8"/></button>
                     <div className="relative w-full max-w-6xl h-[80vh] p-4 flex flex-col items-center justify-center" onClick={e => e.stopPropagation()}>
-                        <div className="relative w-full h-full rounded-lg overflow-hidden shadow-2xl">
-                            <Image src={getImageUrl(allImages[idx].image)} alt="Full" fill className="object-contain" unoptimized />
-                        </div>
+                        <div className="relative w-full h-full rounded-lg overflow-hidden shadow-2xl"><Image src={getImageUrl(allImages[idx].image)} alt="Full" fill className="object-contain" unoptimized /></div>
                         <p className="text-white/70 mt-4 text-sm font-medium tracking-widest">{idx + 1} / {allImages.length}</p>
                     </div>
                     <button onClick={(e) => { e.stopPropagation(); setIdx((idx + 1) % allImages.length); }} className="absolute right-4 md:right-8 text-white/80 hover:text-white p-3 z-10 bg-white/10 rounded-full transition hover:bg-white/20"><ChevronRight className="w-8 h-8"/></button>
@@ -276,41 +228,22 @@ function ReviewSection({ destination, onRefresh }: { destination: Destination, o
         if (!token) { toast.error("Silakan login dulu"); return router.push('/login'); }
         if (form.rating === 0) return toast.error('Pilih bintang rating!');
         if (!form.comment) return toast.error('Isi komentar Anda!');
-
         setSubmitting(true);
         const data = new FormData();
         data.append('destination_id', String(destination.id));
         data.append('rating', String(form.rating));
         data.append('comment', form.comment);
         if (form.image) data.append('image', form.image);
-
         try {
-            const res = await fetch(`${API_BASE_URL}/api/reviews`, { 
-                method: 'POST', 
-                headers: { 'Authorization': `Bearer ${token}` }, 
-                body: data 
-            });
-            const json = await res.json();
-            
-            if (res.ok) { 
-                toast.success('Ulasan terkirim!'); 
-                setForm({ rating: 0, comment: '', image: null }); 
-                setPreview(null); 
-                onRefresh(); 
-            } else { 
-                toast.error(json.message || 'Gagal mengirim ulasan'); 
-            }
-        } catch { 
-            toast.error('Error koneksi server'); 
-        } finally { 
-            setSubmitting(false); 
-        }
+            const res = await fetch(`${API_BASE_URL}/api/reviews`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` }, body: data });
+            if (res.ok) { toast.success('Ulasan terkirim!'); setForm({ rating: 0, comment: '', image: null }); setPreview(null); onRefresh(); }
+            else { toast.error('Gagal mengirim ulasan'); }
+        } catch { toast.error('Error koneksi server'); } finally { setSubmitting(false); }
     };
 
     return (
         <div className="border-t border-gray-100 pt-8 mt-10">
             <h2 className="text-2xl font-bold mb-6 text-[#0B2F5E]">Ulasan ({destination.reviews?.length || 0})</h2>
-            
             {token ? (
                 <form onSubmit={submit} className="bg-gray-50 p-6 rounded-2xl border border-gray-200 mb-8 shadow-sm">
                     <div className="flex gap-2 mb-4">{[1,2,3,4,5].map(s => (<button key={s} type="button" onClick={() => setForm({...form, rating: s})} className="transition hover:scale-110 active:scale-95"><Star className={`w-8 h-8 ${s <= form.rating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`}/></button>))}</div>
@@ -322,13 +255,10 @@ function ReviewSection({ destination, onRefresh }: { destination: Destination, o
                     </div>
                 </form>
             ) : <div className="bg-blue-50 p-4 rounded-xl text-blue-800 text-sm mb-8 border border-blue-100 flex items-center gap-2"><Info className="w-5 h-5"/>Silakan <span className="font-bold underline cursor-pointer" onClick={() => router.push('/login')}>Login</span> untuk mereview.</div>}
-            
             <div className="space-y-6">
                 {destination.reviews?.length ? destination.reviews.map((r: any) => (
                     <div key={r.id} className="flex gap-4 pb-6 border-b border-gray-100 last:border-0">
-                        <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center font-bold text-gray-400 border border-gray-200 shrink-0 relative overflow-hidden">
-                            {r.user?.avatar_url ? (<Image src={getImageUrl(r.user.avatar_url)} alt={r.user.name} fill className="object-cover" unoptimized />) : (<UserIcon className="w-6 h-6"/>)}
-                        </div>
+                        <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center font-bold text-gray-400 border border-gray-200 shrink-0 relative overflow-hidden">{r.user?.avatar_url ? (<Image src={getImageUrl(r.user.avatar_url)} alt={r.user.name} fill className="object-cover" unoptimized />) : (<UserIcon className="w-6 h-6"/>)}</div>
                         <div>
                             <div className="flex items-center gap-2 mb-1"><h4 className="font-bold text-gray-900">{r.user?.name || 'Pengunjung'}</h4><span className="text-xs text-gray-400">{formatDate(r.created_at)}</span></div>
                             <div className="flex mb-2">{[...Array(5)].map((_, i) => <Star key={i} className={`w-3 h-3 ${i < r.rating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-200'}`}/>)}</div>
@@ -342,7 +272,7 @@ function ReviewSection({ destination, onRefresh }: { destination: Destination, o
     );
 }
 
-// --- BOOKING CARD DENGAN NAVIGASI BULAN ---
+// --- FIXED BOOKING CARD ---
 function BookingCard({ destination }: { destination: Destination }) {
     const { token } = useAuth();
     const router = useRouter();
@@ -355,81 +285,51 @@ function BookingCard({ destination }: { destination: Destination }) {
     const { refreshCart } = useCartContext(); 
     const { addNotification } = useNotification(); 
     const [addingToCart, setAddingToCart] = useState(false); 
-    
-    // State untuk Kalender Bulanan
     const [currentViewDate, setCurrentViewDate] = useState(new Date());
 
-    const total = (destination.price * qty) + (addons.reduce((acc, id) => acc + (destination.addons?.find(a => a.id === id)?.price || 0), 0) * qty);
+    // PERBAIKAN: Gunakan Number() untuk memastikan harga bukan string
+    const total = useMemo(() => {
+        const basePrice = Number(destination.price) || 0;
+        const addonPriceSum = addons.reduce((acc, id) => {
+            const found = destination.addons?.find(a => a.id === id);
+            return acc + (Number(found?.price) || 0);
+        }, 0);
+        return (basePrice + addonPriceSum) * qty;
+    }, [destination.price, destination.addons, addons, qty]);
+
     const toggleAddon = (id: number) => setAddons(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
 
-    // Generate Hari dalam Bulan yang Dilihat
     const getDaysInViewMonth = () => {
         const year = currentViewDate.getFullYear();
         const month = currentViewDate.getMonth();
         const date = new Date(year, month, 1);
         const days = [];
-        
-        while (date.getMonth() === month) {
-            days.push(new Date(date));
-            date.setDate(date.getDate() + 1);
-        }
+        while (date.getMonth() === month) { days.push(new Date(date)); date.setDate(date.getDate() + 1); }
         return days;
     };
 
     const daysInView = getDaysInViewMonth();
-    const today = new Date();
-    today.setHours(0, 0, 0, 0); // Reset jam untuk perbandingan tanggal
+    const today = new Date(); today.setHours(0, 0, 0, 0);
 
-    // Navigasi Bulan
     const changeMonth = (offset: number) => {
         const newDate = new Date(currentViewDate);
         newDate.setMonth(newDate.getMonth() + offset);
         setCurrentViewDate(newDate);
     };
 
-    // Format Header Bulan (Desember 2025)
-    const monthHeader = currentViewDate.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
-
-    // Cek apakah bulan yang dilihat adalah bulan sekarang (untuk disable tombol prev)
-    const isCurrentMonth = currentViewDate.getMonth() === today.getMonth() && currentViewDate.getFullYear() === today.getFullYear();
-
     const handleAddToCart = async () => {
-        if (!token) { toast.error("Silakan login dulu"); return router.push('/login'); }
-        if (!date) return toast.error('Pilih tanggal kunjungan!');
-        
+        if (!token) return router.push('/login');
+        if (!date) return toast.error('Pilih tanggal!');
         setAddingToCart(true);
         try {
             const res = await fetch(`${API_BASE_URL}/api/cart`, {
                 method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json', 
-                    'Accept': 'application/json', 
-                    'Authorization': `Bearer ${token}` 
-                },
-                body: JSON.stringify({ 
-                    destination_id: destination.id, 
-                    quantity: qty, 
-                    visit_date: date, 
-                    addons: addons 
-                })
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ destination_id: destination.id, quantity: qty, visit_date: date, addons: addons })
             });
-
-            const text = await res.text();
-            let json;
-            try { json = JSON.parse(text); } 
-            catch(e) { throw new Error("Server Error"); }
-
-            if (res.ok) { 
-                toast.success('Berhasil masuk keranjang!'); 
-                await refreshCart(); 
-            } else { 
-                toast.error(json.message || 'Gagal menambahkan ke keranjang');
-            }
-        } catch (error) { 
-            toast.error('Gagal menghubungi server'); 
-        } finally { 
-            setAddingToCart(false); 
-        }
+            if (res.ok) { toast.success('Masuk keranjang!'); await refreshCart(); }
+            else { toast.error('Gagal menambahkan'); }
+        } catch { toast.error('Gagal menghubungi server'); } finally { setAddingToCart(false); }
     };
 
     const handleCheckout = async () => {
@@ -443,7 +343,7 @@ function BookingCard({ destination }: { destination: Destination }) {
             const json = await res.json();
             if (res.ok) { 
                 toast.success('Pesanan dibuat!'); 
-                addNotification('transaction', 'Menunggu Pembayaran', `Pesanan ${destination.name} berhasil dibuat.`);
+                addNotification('transaction', 'Menunggu Pembayaran', `Berhasil memesan ${destination.name}.`);
                 router.push(`/payment/${json.booking_code}`); 
             } else { toast.error(json.message || 'Gagal'); }
         } catch { toast.error('Error server'); } finally { setProcessing(false); }
@@ -454,125 +354,71 @@ function BookingCard({ destination }: { destination: Destination }) {
             <div className="flex justify-between items-center mb-6 border-b border-gray-100 pb-4">
                 <div>
                     <span className="text-xs text-gray-400 font-medium block">Mulai dari</span>
-                    <div className="text-3xl font-extrabold text-[#F57C00]">Rp {destination.price.toLocaleString('id-ID')}</div>
+                    <div className="text-3xl font-extrabold text-[#F57C00]">Rp {Number(destination.price).toLocaleString('id-ID')}</div>
                 </div>
                 <span className="text-sm bg-gray-100 text-gray-500 px-3 py-1 rounded-full font-medium">per orang</span>
             </div>
             
             <div className="space-y-6 mb-6">
-                
-                {/* --- CALENDAR UI WITH NAVIGATION --- */}
                 <div>
-                    <label className="text-xs font-bold text-gray-700 uppercase mb-3 flex items-center gap-2">
-                        <CalendarIcon className="w-4 h-4 text-[#F57C00]"/> Pilih Tanggal Kunjungan
-                    </label>
-                    
-                    {/* Month Navigator */}
+                    <label className="text-xs font-bold text-gray-700 uppercase mb-3 flex items-center gap-2"><CalendarIcon className="w-4 h-4 text-[#F57C00]"/> Pilih Tanggal Kunjungan</label>
                     <div className="flex justify-between items-center bg-gray-50 p-2 rounded-xl mb-2 border border-gray-100">
-                        <button 
-                            onClick={() => changeMonth(-1)} 
-                            disabled={isCurrentMonth}
-                            className="p-1 rounded-lg hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed transition"
-                        >
-                            <ChevronLeft className="w-5 h-5 text-gray-600"/>
-                        </button>
-                        <span className="text-sm font-bold text-[#0B2F5E] uppercase tracking-wide">{monthHeader}</span>
-                        <button 
-                            onClick={() => changeMonth(1)}
-                            className="p-1 rounded-lg hover:bg-white transition"
-                        >
-                            <ChevronRight className="w-5 h-5 text-gray-600"/>
-                        </button>
+                        <button onClick={() => changeMonth(-1)} disabled={currentViewDate.getMonth() === today.getMonth()} className="p-1 disabled:opacity-30"><ChevronLeft className="w-5 h-5"/></button>
+                        <span className="text-sm font-bold text-[#0B2F5E]">{currentViewDate.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}</span>
+                        <button onClick={() => changeMonth(1)} className="p-1"><ChevronRight className="w-5 h-5"/></button>
                     </div>
-
-                    {/* Date Grid */}
-                    <div className="grid grid-cols-4 gap-2 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
+                    <div className="grid grid-cols-4 gap-2 max-h-[220px] overflow-y-auto pr-1 custom-scrollbar">
                         {daysInView.map((d, i) => {
-                            const val = formatDateValue(d);
-                            const isSelected = date === val;
-                            const isRedDate = isHoliday(d); 
-                            const isPast = d < today;
-
+                            const val = formatDateValue(d); const isSelected = date === val; const isRed = isHoliday(d); const isPast = d < today;
                             return (
-                                <button
-                                    key={i}
-                                    onClick={() => !isPast && setDate(val)}
-                                    disabled={isPast}
-                                    className={`flex flex-col items-center justify-center p-2.5 rounded-xl border transition-all duration-200
-                                        ${isPast 
-                                            ? 'bg-gray-100 border-gray-100 opacity-50 cursor-not-allowed' // Tanggal Lewat
-                                            : isSelected 
-                                                ? 'bg-[#0B2F5E] text-white border-[#0B2F5E] shadow-md ring-2 ring-blue-100' 
-                                                : isRedDate
-                                                    ? 'bg-red-50 text-red-600 border-red-200 hover:border-red-400 hover:bg-red-100' 
-                                                    : 'bg-white text-gray-600 border-gray-200 hover:border-[#F57C00] hover:bg-orange-50'
-                                        }
-                                    `}
-                                >
-                                    <span className={`text-[10px] font-bold uppercase ${isSelected ? 'text-blue-200' : isRedDate && !isPast ? 'text-red-400' : 'text-gray-400'}`}>
-                                        {getDayName(d)}
-                                    </span>
-                                    <span className={`text-base font-bold leading-tight ${isSelected ? 'text-white' : isRedDate && !isPast ? 'text-red-700' : 'text-gray-800'}`}>
-                                        {d.getDate()}
-                                    </span>
+                                <button key={i} onClick={() => !isPast && setDate(val)} disabled={isPast} className={`flex flex-col items-center p-2 rounded-xl border transition-all ${isPast ? 'bg-gray-100 opacity-50' : isSelected ? 'bg-[#0B2F5E] text-white border-[#0B2F5E]' : isRed ? 'bg-red-50 text-red-600 border-red-200' : 'bg-white text-gray-600 border-gray-200'}`}>
+                                    <span className="text-[10px] uppercase">{getDayName(d)}</span>
+                                    <span className="text-base font-bold">{d.getDate()}</span>
                                 </button>
                             );
                         })}
                     </div>
-                    {date && (
-                        <div className="flex items-center gap-2 mt-3 animate-in fade-in slide-in-from-top-1 bg-blue-50 p-2 rounded-lg border border-blue-100">
-                            <CalendarIcon className="w-4 h-4 text-[#0B2F5E]" />
-                            <p className="text-xs text-gray-600">
-                                Terpilih: <span className="font-bold text-[#0B2F5E]">{formatDate(date)}</span>
-                            </p>
-                        </div>
-                    )}
                 </div>
-
                 <div>
                     <label className="text-xs font-bold text-gray-700 uppercase mb-2 block">Jumlah Peserta</label>
                     <div className="flex justify-between items-center p-1 bg-gray-50 rounded-xl border border-gray-200">
-                        <button onClick={() => setQty(q => Math.max(1, q - 1))} className="w-10 h-10 flex items-center justify-center hover:text-[#F57C00] hover:bg-white rounded-lg transition"><Minus className="w-4 h-4"/></button>
+                        <button onClick={() => setQty(q => Math.max(1, q - 1))} className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-white transition"><Minus className="w-4 h-4"/></button>
                         <span className="font-bold text-gray-800 text-lg">{qty}</span>
-                        <button onClick={() => setQty(q => q + 1)} className="w-10 h-10 flex items-center justify-center bg-[#0B2F5E] text-white rounded-lg hover:bg-[#09254A] shadow-sm transition"><Plus className="w-4 h-4"/></button>
+                        <button onClick={() => setQty(q => q + 1)} className="w-10 h-10 flex items-center justify-center bg-[#0B2F5E] text-white rounded-lg transition"><Plus className="w-4 h-4"/></button>
                     </div>
                 </div>
-
-                {destination.addons?.length! > 0 && <div className="space-y-2"><label className="text-xs font-bold text-gray-700 flex gap-1 items-center"><Tag className="w-3 h-3"/> Add-ons</label>{destination.addons?.map(a => (<div key={a.id} onClick={() => toggleAddon(a.id)} className={`p-3 rounded-xl border flex justify-between items-center cursor-pointer transition select-none ${addons.includes(a.id) ? 'border-blue-500 bg-blue-50' : 'hover:border-gray-300'}`}><div className="flex gap-2 items-center"><div className={`w-4 h-4 rounded border flex items-center justify-center ${addons.includes(a.id) ? 'bg-blue-500 border-blue-500' : ''}`}>{addons.includes(a.id) && <Check className="w-3 h-3 text-white"/>}</div><span className="text-sm font-medium text-gray-700">{a.name}</span></div><span className="text-sm font-bold text-[#F57C00]">+Rp {Number(a.price).toLocaleString('id-ID')}</span></div>))}</div>}
-                
+                {destination.addons && destination.addons.length > 0 && (
+                    <div className="space-y-2">
+                        <label className="text-xs font-bold text-gray-700 flex gap-1 items-center"><Tag className="w-3 h-3"/> Add-ons</label>
+                        {destination.addons.map(a => (
+                            <div key={a.id} onClick={() => toggleAddon(a.id)} className={`p-3 rounded-xl border flex justify-between items-center cursor-pointer transition ${addons.includes(a.id) ? 'border-blue-500 bg-blue-50' : 'hover:border-gray-300'}`}>
+                                <div className="flex gap-2 items-center"><div className={`w-4 h-4 rounded border flex items-center justify-center ${addons.includes(a.id) ? 'bg-blue-500 border-blue-500' : ''}`}>{addons.includes(a.id) && <Check className="w-3 h-3 text-white"/>}</div><span className="text-sm font-medium text-gray-700">{a.name}</span></div>
+                                <span className="text-sm font-bold text-[#F57C00]">+Rp {Number(a.price).toLocaleString('id-ID')}</span>
+                            </div>
+                        ))}
+                    </div>
+                )}
                 <div className="flex justify-between pt-4 border-t border-gray-100"><span className="font-medium text-gray-500">Total Harga</span><span className="font-extrabold text-2xl text-[#0B2F5E]">Rp {total.toLocaleString('id-ID')}</span></div>
             </div>
-            
             <div className="flex gap-3">
-                <button onClick={handleAddToCart} disabled={addingToCart} className="flex-1 flex items-center justify-center gap-2 border-2 border-[#F57C00] text-[#F57C00] py-3.5 rounded-xl font-bold hover:bg-[#F57C00] hover:text-white transition-all duration-300 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed group">{addingToCart ? <Loader2 className="w-5 h-5 animate-spin"/> : <ShoppingCart className="w-5 h-5 group-hover:text-white transition-colors"/>}<span className="text-sm md:text-base">Keranjang</span></button>
-                <button onClick={() => { if(!token) { toast.error("Login dulu"); return router.push('/login'); } if(!date) return toast.error('Pilih tanggal!'); setModalOpen(true); }} className="flex-[1.5] bg-[#0B2F5E] text-white py-3.5 rounded-xl font-bold hover:bg-[#09254A] shadow-lg shadow-blue-900/20 active:scale-[0.98] transition-all duration-300 text-sm md:text-base">Pesan Sekarang</button>
+                <button onClick={handleAddToCart} disabled={addingToCart} className="flex-1 flex justify-center py-3.5 border-2 border-[#F57C00] text-[#F57C00] rounded-xl font-bold transition disabled:opacity-50">{addingToCart ? <Loader2 className="animate-spin"/> : <ShoppingCart/>}</button>
+                <button onClick={() => { if(!token) return router.push('/login'); if(!date) return toast.error('Pilih tanggal!'); setModalOpen(true); }} className="flex-[1.5] bg-[#0B2F5E] text-white py-3.5 rounded-xl font-bold transition">Pesan Sekarang</button>
             </div>
-
-            {/* MODAL KONFIRMASI */}
             {modalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
-                    <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 shadow-2xl">
-                        <div className="bg-[#0B2F5E] px-6 py-4 flex justify-between text-white font-bold items-center"><span className="flex items-center gap-2"><CheckCircle className="w-5 h-5 text-green-400"/> Konfirmasi</span><button onClick={() => setModalOpen(false)}><X/></button></div>
+                    <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95">
+                        <div className="bg-[#0B2F5E] px-6 py-4 flex justify-between text-white font-bold items-center"><span>Konfirmasi</span><button onClick={() => setModalOpen(false)}><X/></button></div>
                         <div className="p-6 space-y-5">
                             <div className="space-y-3">
-                                <div className="flex justify-between border-b border-gray-100 pb-2"><span className="text-gray-500">Tiket ({qty}x)</span><span className="font-medium">Rp {(destination.price * qty).toLocaleString('id-ID')}</span></div>
-                                {addons.length > 0 && <div className="flex justify-between border-b border-gray-100 pb-2"><span className="text-gray-500">Add-ons</span><span className="font-medium">Rp {(total - (destination.price * qty)).toLocaleString('id-ID')}</span></div>}
+                                <div className="flex justify-between border-b border-gray-100 pb-2"><span className="text-gray-500">Tiket ({qty}x)</span><span className="font-medium">Rp {(Number(destination.price) * qty).toLocaleString('id-ID')}</span></div>
+                                {addons.length > 0 && <div className="flex justify-between border-b border-gray-100 pb-2"><span className="text-gray-500">Add-ons</span><span className="font-medium">Rp {(total - (Number(destination.price) * qty)).toLocaleString('id-ID')}</span></div>}
                             </div>
-                            <div>
-                                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Metode Pembayaran</p>
-                                <div className="grid grid-cols-1 gap-2">
-                                    <div onClick={() => setPaymentMethod('qris')} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${paymentMethod === 'qris' ? 'border-[#F57C00] bg-orange-50 ring-1 ring-[#F57C00]/30' : 'border-gray-200 hover:bg-gray-50'}`}>
-                                        <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${paymentMethod === 'qris' ? 'border-[#F57C00]' : 'border-gray-300'}`}>{paymentMethod === 'qris' && <div className="w-3 h-3 bg-[#F57C00] rounded-full" />}</div>
-                                        <ScanLine className="w-5 h-5 text-gray-600" /><span className="text-sm font-bold text-gray-700">QRIS (Instant)</span>
-                                    </div>
-                                    <div onClick={() => setPaymentMethod('bca')} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${paymentMethod === 'bca' ? 'border-[#F57C00] bg-orange-50 ring-1 ring-[#F57C00]/30' : 'border-gray-200 hover:bg-gray-50'}`}>
-                                        <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${paymentMethod === 'bca' ? 'border-[#F57C00]' : 'border-gray-300'}`}>{paymentMethod === 'bca' && <div className="w-3 h-3 bg-[#F57C00] rounded-full" />}</div>
-                                        <Building2 className="w-5 h-5 text-gray-600" /><span className="text-sm font-bold text-gray-700">Bank Transfer (BCA)</span>
-                                    </div>
-                                </div>
+                            <div className="grid grid-cols-1 gap-2">
+                                <div onClick={() => setPaymentMethod('qris')} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer ${paymentMethod === 'qris' ? 'border-[#F57C00] bg-orange-50' : 'border-gray-200'}`}><ScanLine/><span className="text-sm font-bold">QRIS (Instant)</span></div>
+                                <div onClick={() => setPaymentMethod('bca')} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer ${paymentMethod === 'bca' ? 'border-[#F57C00] bg-orange-50' : 'border-gray-200'}`}><Building2/><span className="text-sm font-bold">Bank Transfer (BCA)</span></div>
                             </div>
-                            <div className="flex justify-between font-bold text-lg pt-2 border-t border-gray-100"><span>Total Bayar</span><span className="text-[#F57C00]">Rp {total.toLocaleString('id-ID')}</span></div>
-                            <button onClick={handleCheckout} disabled={processing} className="w-full bg-[#0B2F5E] text-white py-3 rounded-xl font-bold hover:bg-[#09254A] transition active:scale-[0.98]">{processing ? 'Memproses...' : 'Bayar Sekarang'}</button>
+                            <div className="flex justify-between font-bold text-lg pt-2 border-t"><span>Total Bayar</span><span className="text-[#F57C00]">Rp {total.toLocaleString('id-ID')}</span></div>
+                            <button onClick={handleCheckout} disabled={processing} className="w-full bg-[#0B2F5E] text-white py-3 rounded-xl font-bold">{processing ? 'Memproses...' : 'Bayar Sekarang'}</button>
                         </div>
                     </div>
                 </div>

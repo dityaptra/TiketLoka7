@@ -19,11 +19,12 @@ class CartResource extends JsonResource
             'user_id' => $this->user_id,
             'destination_id' => $this->destination_id,
             'quantity' => $this->quantity,
-            'total_price' => $this->total_price,
             'visit_date' => $this->visit_date,
+            // Kirim addons kembali sebagai array (bukan string JSON mentah)
+            'addons' => is_array($this->addons) ? $this->addons : json_decode($this->addons ?? '[]', true),
+            'destination' => $this->destination, // Ini akan menyertakan .addons master
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
-            'destination' => $this->whenLoaded('destination'),
         ];
     }
 }

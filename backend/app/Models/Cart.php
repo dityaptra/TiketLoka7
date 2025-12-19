@@ -14,6 +14,7 @@ class Cart extends Model
         'destination_id',
         'quantity',
         'visit_date',
+        'addons',
     ];
 
     protected $appends = ['total_price'];

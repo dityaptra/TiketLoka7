@@ -16,6 +16,7 @@ import {
   CheckCircle2,
   XCircle,
   CreditCard,
+  PlusCircle,
 } from "lucide-react";
 import { Booking } from "@/types";
 import { useAuth } from "@/context/AuthContext";
@@ -25,17 +26,14 @@ export default function MyTicketsPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // State Filter & Search
   const [activeTab, setActiveTab] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
 
-  // KONFIGURASI URL API
   const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
-  // --- PERBAIKAN 1: Format Rupiah yang Aman ---
   const formatIDR = (value: any) => {
-    const price = Number(value); // Paksa ubah ke number
-    if (isNaN(price)) return "Rp 0"; // Jika gagal, kembalikan 0
+    const price = Number(value);
+    if (isNaN(price)) return "Rp 0";
     return new Intl.NumberFormat("id-ID", {
       style: "currency",
       currency: "IDR",
@@ -43,12 +41,11 @@ export default function MyTicketsPage() {
     }).format(price);
   };
 
-  // Helper URL Gambar
   const getImageUrl = (url: string | null) => {
     if (!url)
       return "https://images.unsplash.com/photo-1596423348633-8472df3b006c?auto=format&fit=crop&w=800";
     if (url.startsWith("http")) return url;
-    const cleanPath = url.startsWith('/') ? url.substring(1) : url;
+    const cleanPath = url.startsWith("/") ? url.substring(1) : url;
     return `${BASE_URL}/storage/${cleanPath}`;
   };
 
@@ -87,32 +84,72 @@ export default function MyTicketsPage() {
     fetchBookings();
   }, [token, authLoading, BASE_URL]);
 
-  // Flattening Data Tiket
+  // --- LOGIKA HITUNGAN TOTAL PRIORITAS DATABASE ---
   const allTickets = useMemo(() => {
     return bookings.flatMap((booking) =>
-      booking.details.map((detail, index) => ({
-        ...detail,
-        parent_status: booking.status,
-        parent_code: booking.booking_code,
-        parent_id: booking.id,
-        parent_total: booking.grand_total,
-        relative_index: index,
-      }))
+      booking.details.map((detail, index) => {
+        
+        // 1. Parsing ID Addons untuk menampilkan daftar nama saja
+        let selectedAddonIds: any[] = [];
+        try {
+            selectedAddonIds = Array.isArray(detail.addons) 
+                ? detail.addons 
+                : JSON.parse(detail.addons as string || "[]");
+        } catch (e) { selectedAddonIds = []; }
+        
+        const selectedIdsString = selectedAddonIds.map(String);
+
+        // 2. Ambil Master Data Addons dari Destinasi (Untuk rincian nama)
+        const availableAddons = detail.destination.addons || [];
+        const selectedAddonObjects = availableAddons.filter((addon: any) => 
+            selectedIdsString.includes(String(addon.id))
+        );
+
+        // 3. LOGIKA HARGA FINAL: PRIORITASKAN DATA DARI DATABASE
+        // Karena Backend sudah menyimpan (Tiket + Addon) x Qty di kolom subtotal
+        const dbSubtotal = Number(detail.subtotal);
+        const basePrice = Number(detail.price) || Number(detail.destination.price) || 0;
+        const quantity = Number(detail.quantity) || 1;
+        
+        // Hitungan manual sebagai cadangan jika data subtotal di DB nol (data lama)
+        const totalAddonPricePerPax = selectedAddonObjects.reduce((sum: number, addon: any) => 
+            sum + Number(addon.price), 0
+        );
+        const manualCalculatedTotal = (basePrice + totalAddonPricePerPax) * quantity;
+
+        // Jika kolom subtotal dari DB > 0, pakai itu. Jika tidak, pakai hitungan manual.
+        const finalPriceToDisplay = dbSubtotal > 0 ? dbSubtotal : manualCalculatedTotal;
+
+        return {
+          ...detail,
+          parent_status: booking.status,
+          parent_code: booking.booking_code,
+          parent_id: booking.id,
+          parent_total: booking.grand_total, // Total 1 transaksi
+          relative_index: index,
+          
+          // Data tampilan
+          calculated_total: finalPriceToDisplay, // Total per tiket
+          total_addons_only: (totalAddonPricePerPax * quantity),
+          addon_details: selectedAddonObjects.map((a: any) => ({
+              name: a.name,
+              price: a.price
+          }))
+        };
+      })
     );
   }, [bookings]);
 
-  // Logika Filter
   const filteredTickets = allTickets.filter((ticket) => {
     const status = ticket.parent_status.toLowerCase();
-    
-    // Filter by Tab
     let matchesStatus = false;
     if (activeTab === "all") matchesStatus = true;
-    else if (activeTab === "paid") matchesStatus = status === "paid" || status === "success";
+    else if (activeTab === "paid")
+      matchesStatus = status === "paid" || status === "success";
     else if (activeTab === "pending") matchesStatus = status === "pending";
-    else if (activeTab === "cancelled") matchesStatus = status === "cancelled" || status === "failed";
+    else if (activeTab === "cancelled")
+      matchesStatus = status === "cancelled" || status === "failed";
 
-    // Filter by Search
     const matchesSearch =
       ticket.destination.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       ticket.parent_code.toLowerCase().includes(searchQuery.toLowerCase());
@@ -120,15 +157,7 @@ export default function MyTicketsPage() {
     return matchesStatus && matchesSearch;
   });
 
-  const TabButton = ({
-    id,
-    label,
-    count,
-  }: {
-    id: string;
-    label: string;
-    count?: number;
-  }) => (
+  const TabButton = ({ id, label, count }: { id: string; label: string; count?: number }) => (
     <button
       onClick={() => setActiveTab(id)}
       className={`px-4 py-2 rounded-full text-sm font-semibold transition-all duration-300 border ${
@@ -137,10 +166,7 @@ export default function MyTicketsPage() {
           : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50"
       }`}
     >
-      {label}{" "}
-      {count !== undefined && (
-        <span className="ml-1 opacity-70 text-xs">({count})</span>
-      )}
+      {label} {count !== undefined && <span className="ml-1 opacity-70 text-xs">({count})</span>}
     </button>
   );
 
@@ -148,175 +174,82 @@ export default function MyTicketsPage() {
     <main className="min-h-screen bg-gray-50 font-sans text-gray-800">
       <Navbar />
 
-      {/* HEADER SECTION */}
       <div className="bg-[#0B2F5E] pt-28 pb-16 px-4 rounded-b-[2.5rem] shadow-lg relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-white opacity-5 rounded-full -mr-20 -mt-20 blur-3xl"></div>
-        <div className="absolute bottom-0 left-0 w-40 h-40 bg-[#F57C00] opacity-10 rounded-full -ml-10 -mb-10 blur-2xl"></div>
-
         <div className="max-w-6xl mx-auto relative z-10">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
             <div>
               <h1 className="text-3xl font-bold text-white flex items-center gap-3">
-                <Ticket className="w-8 h-8 text-[#F57C00]" />
-                Tiket Saya
+                <Ticket className="w-8 h-8 text-[#F57C00]" /> Tiket Saya
               </h1>
-              <p className="text-blue-100 mt-2 text-sm md:text-base">
-                Kelola semua petualangan dan perjalanan wisata Anda di sini.
-              </p>
+              <p className="text-blue-100 mt-2 text-sm">Kelola pesanan dan rincian perjalanan wisata Anda.</p>
             </div>
-
-            {/* SEARCH BAR */}
             <div className="relative w-full md:w-80">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none z-10">
-                <Search className="h-5 w-5 text-blue-200" />
-              </div>
+              <Search className="absolute left-3 top-3.5 h-5 w-5 text-blue-200" />
               <input
                 type="text"
-                className="block w-full pl-10 pr-3 py-3 border-none rounded-xl leading-5 bg-white/10 text-white placeholder-blue-200 focus:outline-none focus:bg-white/20 focus:ring-2 focus:ring-[#F57C00] transition-all sm:text-sm shadow-inner"
+                className="block w-full pl-10 pr-3 py-3 border-none rounded-xl bg-white/10 text-white placeholder-blue-200 focus:ring-2 focus:ring-[#F57C00] outline-none"
                 placeholder="Cari lokasi atau kode..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
           </div>
-
-          {/* Filter Tabs */}
-          {!loading && token && (
-            <div className="flex flex-wrap gap-2">
-              <TabButton id="all" label="Semua" count={allTickets.length} />
-              <TabButton id="paid" label="Berhasil" /> 
-              <TabButton id="pending" label="Menunggu" />
-              <TabButton id="cancelled" label="Dibatalkan" />
-            </div>
-          )}
+          <div className="flex flex-wrap gap-2">
+            <TabButton id="all" label="Semua" count={allTickets.length} />
+            <TabButton id="paid" label="Berhasil" />
+            <TabButton id="pending" label="Menunggu" />
+            <TabButton id="cancelled" label="Dibatalkan" />
+          </div>
         </div>
       </div>
 
-      {/* CONTENT LIST */}
       <div className="max-w-6xl mx-auto px-4 -mt-8 pb-20 relative z-20">
         {loading || authLoading ? (
           <div className="flex flex-col items-center justify-center py-20 bg-white rounded-3xl shadow-sm border border-gray-100 min-h-[300px]">
             <Loader2 className="animate-spin text-[#F57C00] w-10 h-10 mb-4" />
             <p className="text-gray-500 font-medium">Memuat tiket Anda...</p>
           </div>
-        ) : !token ? (
-          <div className="text-center py-16 text-gray-500 bg-white rounded-3xl shadow-sm p-8 border border-gray-100 max-w-2xl mx-auto">
-            <AlertCircle className="w-16 h-16 mx-auto mb-4 text-[#F57C00]" />
-            <h3 className="text-xl font-bold text-gray-800 mb-2">
-              Akses Dibatasi
-            </h3>
-            <p className="font-medium text-gray-500 mb-6">
-              Silakan login terlebih dahulu untuk melihat riwayat tiket Anda.
-            </p>
-            <Link
-              href="/login"
-              className="inline-flex items-center gap-2 bg-[#0B2F5E] text-white px-8 py-3 rounded-xl font-bold hover:bg-[#09254A] transition shadow-lg hover:shadow-xl transform hover:-translate-y-1"
-            >
-              Login Sekarang <ChevronRight className="w-4 h-4" />
-            </Link>
-          </div>
         ) : filteredTickets.length === 0 ? (
           <div className="text-center py-20 bg-white rounded-3xl shadow-sm p-8 border border-gray-100">
-            <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-gray-100">
-              {searchQuery ? (
-                <Search className="w-8 h-8 text-gray-400" />
-              ) : (
-                <Ticket className="w-8 h-8 text-gray-400" />
-              )}
-            </div>
-            <h3 className="text-lg font-bold text-gray-800">
-              {searchQuery ? "Tiket tidak ditemukan" : "Belum ada tiket"}
-            </h3>
-            <p className="text-gray-500 mt-1 max-w-md mx-auto">
-              {searchQuery
-                ? `Tidak ada hasil untuk pencarian "${searchQuery}"`
-                : "Anda belum memesan tiket wisata apapun. Yuk mulai petualanganmu!"}
-            </p>
-            {!searchQuery && (
-              <Link
-                href="/"
-                className="mt-6 inline-block bg-[#F57C00] text-white px-8 py-3 rounded-xl font-bold shadow-lg shadow-orange-200 hover:shadow-orange-300 transition hover:-translate-y-0.5"
-              >
+            <Ticket className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-lg font-bold text-gray-800">Tiket tidak ditemukan</h3>
+            <Link href="/" className="mt-6 inline-block bg-[#F57C00] text-white px-8 py-3 rounded-xl font-bold shadow-lg shadow-orange-200">
                 Cari Wisata
-              </Link>
-            )}
+            </Link>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredTickets.map((ticket, idx) => {
-              // --- LOGIKA STATUS WARNA ---
               const status = ticket.parent_status.toLowerCase();
-              let statusColor = "bg-gray-100 text-gray-600 border-gray-200";
-              let StatusIcon = Clock;
-
-              if (status === "success" || status === "paid") {
-                statusColor = "bg-green-50 text-green-700 border-green-200";
-                StatusIcon = CheckCircle2;
-              } else if (status === "pending") {
-                statusColor = "bg-orange-50 text-orange-700 border-orange-200";
-                StatusIcon = Clock;
-              } else if (status === "cancelled" || status === "failed") {
-                statusColor = "bg-red-50 text-red-700 border-red-200";
-                StatusIcon = XCircle;
-              }
-
               const isPending = status === "pending";
               const isCancelled = status === "cancelled" || status === "failed";
-
-              const targetUrl = isPending
-                ? `/payment/${ticket.parent_code}`
-                : isCancelled
-                ? "#"
-                : `/tickets/${ticket.parent_code}?index=${ticket.relative_index}`;
-
-              // --- PERBAIKAN 2: Kalkulasi Aman (Mencegah NaN) ---
-              // Mengonversi ke Number() sebelum dikalikan. Jika null/undefined, jadi 0.
-              // Coba ambil dari ticket.price dulu, kalau 0 ambil dari ticket.destination.price
-              const priceSafe = Number(ticket.price) || Number(ticket.destination?.price) || 0;
-              const qtySafe = Number(ticket.quantity) || 0;
-              const totalPrice = priceSafe * qtySafe;
+              
+              // Tentukan harga yang ditampilkan:
+              // Gunakan Grand Total transaksi jika Pending (biar user tahu total transfer)
+              // Gunakan Calculated Total (dari DB subtotal) jika sudah bayar
+              const priceToDisplay = isPending ? ticket.parent_total : ticket.calculated_total;
 
               return (
                 <Link
-                  href={targetUrl}
-                  key={`${ticket.parent_id}-${ticket.id}-${idx}`}
-                  className={`group bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-xl transition-all duration-300 flex flex-col ${
-                    isPending ? "hover:border-orange-300" : "hover:border-blue-100"
-                  } ${isCancelled ? "opacity-75 grayscale-[0.5]" : ""}`}
-                  onClick={(e) => {
-                      if(isCancelled) e.preventDefault();
-                  }}
+                  href={isPending ? `/payment/${ticket.parent_code}` : isCancelled ? "#" : `/tickets/${ticket.parent_code}?index=${ticket.relative_index}`}
+                  key={idx}
+                  className={`group bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-xl transition-all flex flex-col ${isCancelled ? "opacity-75 grayscale-[0.5]" : ""}`}
                 >
                   <div className="relative h-48 w-full overflow-hidden">
-                    <img
-                      src={getImageUrl(ticket.destination.image_url)}
-                      alt={ticket.destination.name}
-                      className={`w-full h-full object-cover transition-transform duration-700 group-hover:scale-110`}
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src =
-                          "https://images.unsplash.com/photo-1596423348633-8472df3b006c?auto=format&fit=crop&w=800";
-                      }}
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-60"></div>
-
+                    <img src={getImageUrl(ticket.destination.image_url)} alt="" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
                     <div className="absolute top-3 right-3">
-                      <span
-                        className={`text-xs font-bold px-3 py-1.5 rounded-full uppercase tracking-wide border flex items-center gap-1.5 backdrop-blur-md shadow-sm ${statusColor}`}
-                      >
-                        <StatusIcon className="w-3.5 h-3.5" />
+                      <span className={`text-[10px] font-bold px-2 py-1 rounded-full uppercase border backdrop-blur-md ${
+                        status === 'paid' || status === 'success' ? 'bg-green-50 text-green-700 border-green-200' : 
+                        isPending ? 'bg-orange-50 text-orange-700 border-orange-200' : 'bg-red-50 text-red-700 border-red-200'
+                      }`}>
                         {ticket.parent_status}
                       </span>
                     </div>
                   </div>
 
                   <div className="p-5 flex-1 flex flex-col">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs text-gray-400 font-mono flex items-center gap-1 bg-gray-50 px-2 py-1 rounded">
-                        <Hash className="w-3 h-3" /> {ticket.parent_code}
-                      </span>
-                    </div>
-
-                    <h3 className="font-bold text-[#0B2F5E] text-lg leading-tight mb-3 line-clamp-2 group-hover:text-[#F57C00] transition-colors">
+                    <span className="text-[10px] text-gray-400 font-mono mb-1">#{ticket.parent_code}</span>
+                    <h3 className="font-bold text-[#0B2F5E] text-lg leading-tight mb-3 line-clamp-1 group-hover:text-[#F57C00] transition-colors">
                       {ticket.destination.name}
                     </h3>
 
@@ -327,32 +260,39 @@ export default function MyTicketsPage() {
                       </div>
                       <div className="flex items-center text-sm text-gray-600 gap-2.5">
                         <MapPin className="w-4 h-4 text-[#F57C00]" />
-                        <span>{ticket.quantity} Orang</span>
+                        <span>{ticket.quantity} Tiket</span>
                       </div>
+
+                      {/* RINCIAN ADD-ONS */}
+                      {ticket.addon_details.length > 0 && (
+                        <div className="pt-2 mt-2 border-t border-dashed border-gray-100">
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Add-ons:</p>
+                            <div className="flex flex-col gap-1">
+                                {ticket.addon_details.map((addon: any, i: number) => (
+                                    <div key={i} className="flex items-center justify-between text-[10px] text-gray-600 bg-gray-50 px-2 py-1 rounded border border-gray-100">
+                                        <div className="flex items-center gap-1">
+                                            <PlusCircle className="w-3 h-3 text-green-600" />
+                                            <span className="font-medium">{addon.name}</span>
+                                        </div>
+                                        <span className="font-bold">+{formatIDR(addon.price)}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                      )}
                     </div>
 
                     <div className="pt-4 border-t border-gray-100 flex items-center justify-between mt-auto">
                       <div className="flex flex-col">
-                        <span className="text-xs text-gray-400">
-                          {isPending ? "Total Tagihan" : "Total Harga"}
-                        </span>
-                        <span className="font-bold text-[#0B2F5E] text-sm">
-                          {/* --- GUNAKAN VARIABLE totalPrice YANG AMAN --- */}
-                          {formatIDR(totalPrice)}
-                        </span>
+                        <span className="text-[10px] text-gray-400">{isPending ? "Total Tagihan" : "Total Dibayar"}</span>
+                        <span className="font-bold text-[#0B2F5E] text-sm">{formatIDR(priceToDisplay)}</span>
                       </div>
-                      
-                      {/* Tombol Action */}
                       {isPending ? (
                         <span className="px-4 py-2 rounded-lg bg-orange-100 text-orange-700 text-xs font-bold flex items-center gap-1 group-hover:bg-orange-600 group-hover:text-white transition-colors">
                            <CreditCard className="w-3.5 h-3.5" /> Bayar
                         </span>
-                      ) : isCancelled ? (
-                          <span className="text-xs text-gray-400 font-medium italic">Pesanan Dibatalkan</span>
                       ) : (
-                        <span className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-[#0B2F5E] group-hover:bg-[#F57C00] group-hover:text-white transition-colors">
-                          <ChevronRight className="w-5 h-5" />
-                        </span>
+                        <ChevronRight className="w-5 h-5 text-gray-300" />
                       )}
                     </div>
                   </div>
