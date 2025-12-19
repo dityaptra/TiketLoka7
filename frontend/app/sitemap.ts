@@ -1,7 +1,7 @@
 import { MetadataRoute } from 'next';
 
 // Base URL Frontend & Backend
-const WEB_BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+const WEB_BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
 // Fungsi Fetch Data semua wisata dari Laravel

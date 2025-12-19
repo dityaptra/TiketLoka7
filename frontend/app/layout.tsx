@@ -13,7 +13,7 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   // 1. Base URL (Penting untuk SEO Gambar & Link Absolut)
   // Ganti 'https://tiketloka.com' dengan domain asli Anda saat deploy
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://tiketloka.com'),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_BASE_URL || 'https://tiketloka.web.id'),
 
   // 2. Title Template (Halaman lain cukup set title: "Nama Wisata", otomatis jadi "Nama Wisata | TiketLoka")
   title: {
