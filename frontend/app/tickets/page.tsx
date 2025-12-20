@@ -8,15 +8,10 @@ import {
   ChevronRight,
   Ticket,
   Loader2,
-  AlertCircle,
   MapPin,
-  Hash,
   Search,
-  Clock,
-  CheckCircle2,
-  XCircle,
-  CreditCard,
   PlusCircle,
+  CreditCard,
 } from "lucide-react";
 import { Booking } from "@/types";
 import { useAuth } from "@/context/AuthContext";
@@ -84,12 +79,14 @@ export default function MyTicketsPage() {
     fetchBookings();
   }, [token, authLoading, BASE_URL]);
 
-  // --- LOGIKA HITUNGAN TOTAL PRIORITAS DATABASE ---
+  // --- LOGIKA DATA TIKET & PENGECEKAN KADALUARSA ---
   const allTickets = useMemo(() => {
+    // Ambil tanggal hari ini untuk perbandingan
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
     return bookings.flatMap((booking) =>
       booking.details.map((detail, index) => {
-        
-        // 1. Parsing ID Addons untuk menampilkan daftar nama saja
         let selectedAddonIds: any[] = [];
         try {
             selectedAddonIds = Array.isArray(detail.addons) 
@@ -98,38 +95,35 @@ export default function MyTicketsPage() {
         } catch (e) { selectedAddonIds = []; }
         
         const selectedIdsString = selectedAddonIds.map(String);
-
-        // 2. Ambil Master Data Addons dari Destinasi (Untuk rincian nama)
         const availableAddons = detail.destination.addons || [];
         const selectedAddonObjects = availableAddons.filter((addon: any) => 
             selectedIdsString.includes(String(addon.id))
         );
 
-        // 3. LOGIKA HARGA FINAL: PRIORITASKAN DATA DARI DATABASE
-        // Karena Backend sudah menyimpan (Tiket + Addon) x Qty di kolom subtotal
         const dbSubtotal = Number(detail.subtotal);
         const basePrice = Number(detail.price) || Number(detail.destination.price) || 0;
         const quantity = Number(detail.quantity) || 1;
         
-        // Hitungan manual sebagai cadangan jika data subtotal di DB nol (data lama)
         const totalAddonPricePerPax = selectedAddonObjects.reduce((sum: number, addon: any) => 
             sum + Number(addon.price), 0
         );
         const manualCalculatedTotal = (basePrice + totalAddonPricePerPax) * quantity;
-
-        // Jika kolom subtotal dari DB > 0, pakai itu. Jika tidak, pakai hitungan manual.
         const finalPriceToDisplay = dbSubtotal > 0 ? dbSubtotal : manualCalculatedTotal;
+
+        // Cek apakah tanggal kunjungan sudah lewat hari ini
+        const visitDate = new Date(detail.visit_date);
+        const isExpired = visitDate < today;
 
         return {
           ...detail,
           parent_status: booking.status,
           parent_code: booking.booking_code,
           parent_id: booking.id,
-          parent_total: booking.grand_total, // Total 1 transaksi
+          parent_total: booking.grand_total,
           relative_index: index,
+          is_expired: isExpired, // Tambahkan properti kadaluarsa
           
-          // Data tampilan
-          calculated_total: finalPriceToDisplay, // Total per tiket
+          calculated_total: finalPriceToDisplay,
           total_addons_only: (totalAddonPricePerPax * quantity),
           addon_details: selectedAddonObjects.map((a: any) => ({
               name: a.name,
@@ -142,13 +136,22 @@ export default function MyTicketsPage() {
 
   const filteredTickets = allTickets.filter((ticket) => {
     const status = ticket.parent_status.toLowerCase();
+    const isPaid = status === "paid" || status === "success";
+    
     let matchesStatus = false;
-    if (activeTab === "all") matchesStatus = true;
-    else if (activeTab === "paid")
-      matchesStatus = status === "paid" || status === "success";
-    else if (activeTab === "pending") matchesStatus = status === "pending";
-    else if (activeTab === "cancelled")
+    if (activeTab === "all") {
+      matchesStatus = true;
+    } else if (activeTab === "paid") {
+      // Hanya tampilkan yang lunas DAN belum lewat tanggalnya
+      matchesStatus = isPaid && !ticket.is_expired;
+    } else if (activeTab === "expired") {
+      // Hanya tampilkan yang lunas TAPI sudah lewat tanggalnya
+      matchesStatus = isPaid && ticket.is_expired;
+    } else if (activeTab === "pending") {
+      matchesStatus = status === "pending";
+    } else if (activeTab === "cancelled") {
       matchesStatus = status === "cancelled" || status === "failed";
+    }
 
     const matchesSearch =
       ticket.destination.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -162,7 +165,7 @@ export default function MyTicketsPage() {
       onClick={() => setActiveTab(id)}
       className={`px-4 py-2 rounded-full text-sm font-semibold transition-all duration-300 border ${
         activeTab === id
-          ? "bg-[#0B2F5E] text-white border-[#0B2F5E] shadow-md transform scale-105"
+          ? "bg-[#0B2F5E] text-white border-[#0B2F5E] shadow-md"
           : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50"
       }`}
     >
@@ -197,6 +200,7 @@ export default function MyTicketsPage() {
           <div className="flex flex-wrap gap-2">
             <TabButton id="all" label="Semua" count={allTickets.length} />
             <TabButton id="paid" label="Berhasil" />
+            <TabButton id="expired" label="Kadaluarsa" /> {/* Filter Baru */}
             <TabButton id="pending" label="Menunggu" />
             <TabButton id="cancelled" label="Dibatalkan" />
           </div>
@@ -213,9 +217,7 @@ export default function MyTicketsPage() {
           <div className="text-center py-20 bg-white rounded-3xl shadow-sm p-8 border border-gray-100">
             <Ticket className="w-12 h-12 text-gray-300 mx-auto mb-4" />
             <h3 className="text-lg font-bold text-gray-800">Tiket tidak ditemukan</h3>
-            <Link href="/" className="mt-6 inline-block bg-[#F57C00] text-white px-8 py-3 rounded-xl font-bold shadow-lg shadow-orange-200">
-                Cari Wisata
-            </Link>
+            <p className="text-gray-400 text-sm mt-1">Coba sesuaikan filter atau cari destinasi lain.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -223,26 +225,25 @@ export default function MyTicketsPage() {
               const status = ticket.parent_status.toLowerCase();
               const isPending = status === "pending";
               const isCancelled = status === "cancelled" || status === "failed";
+              const isExpired = ticket.is_expired && (status === "paid" || status === "success");
               
-              // Tentukan harga yang ditampilkan:
-              // Gunakan Grand Total transaksi jika Pending (biar user tahu total transfer)
-              // Gunakan Calculated Total (dari DB subtotal) jika sudah bayar
               const priceToDisplay = isPending ? ticket.parent_total : ticket.calculated_total;
 
               return (
                 <Link
-                  href={isPending ? `/payment/${ticket.parent_code}` : isCancelled ? "#" : `/tickets/${ticket.parent_code}?index=${ticket.relative_index}`}
+                  href={isPending ? `/payment/${ticket.parent_code}` : (isCancelled || isExpired) ? "#" : `/tickets/${ticket.parent_code}?index=${ticket.relative_index}`}
                   key={idx}
-                  className={`group bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-xl transition-all flex flex-col ${isCancelled ? "opacity-75 grayscale-[0.5]" : ""}`}
+                  className={`group bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-xl transition-all flex flex-col ${isCancelled || isExpired ? "opacity-75 grayscale-[0.5]" : ""}`}
                 >
                   <div className="relative h-48 w-full overflow-hidden">
                     <img src={getImageUrl(ticket.destination.image_url)} alt="" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
                     <div className="absolute top-3 right-3">
                       <span className={`text-[10px] font-bold px-2 py-1 rounded-full uppercase border backdrop-blur-md ${
+                        isExpired ? 'bg-gray-100 text-gray-600 border-gray-300' :
                         status === 'paid' || status === 'success' ? 'bg-green-50 text-green-700 border-green-200' : 
                         isPending ? 'bg-orange-50 text-orange-700 border-orange-200' : 'bg-red-50 text-red-700 border-red-200'
                       }`}>
-                        {ticket.parent_status}
+                        {isExpired ? 'Kadaluarsa' : ticket.parent_status}
                       </span>
                     </div>
                   </div>
@@ -263,7 +264,6 @@ export default function MyTicketsPage() {
                         <span>{ticket.quantity} Tiket</span>
                       </div>
 
-                      {/* RINCIAN ADD-ONS */}
                       {ticket.addon_details.length > 0 && (
                         <div className="pt-2 mt-2 border-t border-dashed border-gray-100">
                             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Add-ons:</p>
