@@ -60,6 +60,7 @@ export default function HomePage() {
       <DestinationGridSection
         endpoint={destinationEndpoint} // Menggunakan endpoint dinamis
         title={sectionTitle}           // Judul dinamis
+        limit={4}
       />
 
       {/* Fitur Section */}

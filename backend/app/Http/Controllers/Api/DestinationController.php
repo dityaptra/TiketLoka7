@@ -33,9 +33,9 @@ class DestinationController extends Controller
     public function index(Request $request)
     {
         $query = Destination::query();
-        
+
         // Load Relasi dasar
-        $query->with(['category']); 
+        $query->with(['category']);
         $query->withAvg('reviews', 'rating'); // Hitung rata-rata rating
 
         // Filter User vs Admin (Admin bisa lihat semua jika ?all=true)
@@ -56,7 +56,7 @@ class DestinationController extends Controller
             });
         }
 
-        $query->latest(); 
+        $query->latest();
 
         // Gunakan paginate() jika ingin pagination, atau get() untuk semua
         // Di sini saya pakai get() sesuai kode awal Anda, tapi saya sarankan paginate() untuk performa
@@ -82,10 +82,10 @@ class DestinationController extends Controller
     {
         // Load semua relasi yang dibutuhkan Frontend
         $destination = Destination::with([
-            'category', 
-            'images', 
-            'inclusions', 
-            'addons', 
+            'category',
+            'images',
+            'inclusions',
+            'addons',
             'reviews.user' // Load review beserta data user-nya
         ])
             ->where('slug', $slug)
@@ -95,12 +95,14 @@ class DestinationController extends Controller
         $imageUrl = $this->formatImageUrl($destination->image_url);
 
         // Format URL Galeri Foto
-        foreach($destination->images as $img) {
-            $img->image_path = $this->formatImageUrl($img->image_path);
+        foreach ($destination->images as $img) {
+            // UBAH DARI: $this->formatImageUrl($img->image_path);
+            // MENJADI:
+            $img->image_path = $this->formatImageUrl($img->image);
         }
 
         // Format URL Foto di Review User (jika ada fitur foto review)
-        foreach($destination->reviews as $review) {
+        foreach ($destination->reviews as $review) {
             if ($review->image) {
                 $review->image = $this->formatImageUrl($review->image);
             }
@@ -124,7 +126,7 @@ class DestinationController extends Controller
                 'meta_description' => $destination->meta_description,
                 'meta_keywords' => $destination->meta_keywords,
                 // ----------------------------
-                
+
                 'images' => $destination->images,
                 'inclusions' => $destination->inclusions,
                 'addons' => $destination->addons,
@@ -154,10 +156,12 @@ class DestinationController extends Controller
 
         // Format URL gambar utama
         $destination->image_url = $this->formatImageUrl($destination->image_url);
-        
+
         // Format URL galeri
-        foreach($destination->images as $img) {
-            $img->image_path = $this->formatImageUrl($img->image_path);
+        foreach ($destination->images as $img) {
+            // UBAH DARI: $this->formatImageUrl($img->image_path);
+            // MENJADI:
+            $img->image_path = $this->formatImageUrl($img->image);
         }
 
         return response()->json(['status' => 'success', 'data' => $destination]);
@@ -221,14 +225,16 @@ class DestinationController extends Controller
 
         // Handle is_active manually (FormData string "true"/"false")
         if ($request->has('is_active')) {
-             $validated['is_active'] = filter_var($request->is_active, FILTER_VALIDATE_BOOLEAN);
+            $validated['is_active'] = filter_var($request->is_active, FILTER_VALIDATE_BOOLEAN);
         }
 
         if ($request->hasFile('image')) {
             // Hapus gambar lama jika ada dan bukan URL eksternal
-            if ($destination->image_url && 
-                !filter_var($destination->image_url, FILTER_VALIDATE_URL) && 
-                Storage::disk('public')->exists($destination->image_url)) {
+            if (
+                $destination->image_url &&
+                !filter_var($destination->image_url, FILTER_VALIDATE_URL) &&
+                Storage::disk('public')->exists($destination->image_url)
+            ) {
                 Storage::disk('public')->delete($destination->image_url);
             }
 
@@ -252,9 +258,11 @@ class DestinationController extends Controller
     {
         $destination = Destination::findOrFail($id);
 
-        if ($destination->image_url && 
-            !filter_var($destination->image_url, FILTER_VALIDATE_URL) && 
-            Storage::disk('public')->exists($destination->image_url)) {
+        if (
+            $destination->image_url &&
+            !filter_var($destination->image_url, FILTER_VALIDATE_URL) &&
+            Storage::disk('public')->exists($destination->image_url)
+        ) {
             Storage::disk('public')->delete($destination->image_url);
         }
 
@@ -273,34 +281,40 @@ class DestinationController extends Controller
     /**
      * Upload Galeri Foto (Multiple)
      */
-    public function uploadGallery(Request $request, $id) {
+    public function uploadGallery(Request $request, $id)
+    {
         $destination = Destination::findOrFail($id);
-        
+
         if ($request->hasFile('images')) {
             foreach ($request->file('images') as $image) {
                 DestinationImage::create([
                     'destination_id' => $destination->id,
-                    'image_path' => $image->store('destinations', 'public')
+                    // PERUBAHAN DISINI: Gunakan 'image' sesuai database & model
+                    'image' => $image->store('destinations', 'public')
                 ]);
             }
         }
 
-        // Return data fresh dengan URL yang sudah diformat
+        // Return data fresh
         $freshData = $destination->load('images');
-        foreach($freshData->images as $img) {
-            $img->image_path = $this->formatImageUrl($img->image_path);
+
+        // FORMATTING URL (PENTING: Ubah pembacaan kolomnya juga)
+        foreach ($freshData->images as $img) {
+            // Asal: $img->image_path -> Ubah jadi $img->image
+            $img->image_path = $this->formatImageUrl($img->image);
         }
-        
+
         return response()->json(['status' => 'success', 'data' => $freshData]);
     }
 
-    public function deleteGalleryImage($image_id) {
+    public function deleteGalleryImage($image_id)
+    {
         $image = DestinationImage::findOrFail($image_id);
-        
+
         if (Storage::disk('public')->exists($image->image_path)) {
             Storage::disk('public')->delete($image->image_path);
         }
-        
+
         $image->delete();
         return response()->json(['status' => 'success']);
     }
@@ -311,12 +325,12 @@ class DestinationController extends Controller
     public function storeInclusion(Request $request, $id)
     {
         $request->validate(['name' => 'required|string|max:255']);
-        
+
         $inclusion = Inclusion::create([
             'destination_id' => $id,
             'name' => $request->name
         ]);
-        
+
         return response()->json(['status' => 'success', 'data' => $inclusion]);
     }
 
@@ -335,13 +349,13 @@ class DestinationController extends Controller
             'name' => 'required|string|max:255',
             'price' => 'required|numeric|min:0'
         ]);
-        
+
         $addon = Addon::create([
             'destination_id' => $id,
             'name' => $request->name,
             'price' => $request->price
         ]);
-        
+
         return response()->json(['status' => 'success', 'data' => $addon]);
     }
 

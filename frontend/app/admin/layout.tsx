@@ -1,4 +1,19 @@
+import { Metadata } from "next"; // 1. Import Metadata
 import Sidebar from "@/components/admin/Sidebar";
+
+// 2. DEFINISI METADATA KHUSUS ADMIN (Static)
+// Ini akan menimpa metadata global dari root layout
+export const metadata: Metadata = {
+  title: "Dashboard Admin - TiketLoka",
+  description: "Halaman khusus administrator untuk mengelola konten TiketLoka.",
+  
+  // ⛔ PENTING: Perintah "JANGAN INDEX" untuk Google
+  // Agar halaman rahasia ini tidak muncul di pencarian Google
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
 
 export default function AdminLayout({
   children,

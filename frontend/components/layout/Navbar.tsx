@@ -21,11 +21,15 @@ import {
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 
+// KONFIGURASI URL API
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+
 // Helper for Image URL
 const getAvatarUrl = (url: string | undefined) => {
   if (!url) return null;
   if (url.startsWith("http")) return url;
-  return `http://127.0.0.1:8000/storage/${url}`;
+  const cleanPath = url.startsWith('/') ? url.substring(1) : url;
+  return `${BASE_URL}/storage/${cleanPath}`;
 };
 
 interface MenuItem {
@@ -71,7 +75,6 @@ const Navbar = () => {
       
       try {
         // Call logout function from AuthContext
-        // This will clear state, localStorage, and redirect to "/"
         await logout();
         
         // No notification if successful (direct redirect)
@@ -201,7 +204,7 @@ const Navbar = () => {
                 onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
               >
                 {/* Avatar Logic: Image or Icon */}
-                <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-500 overflow-hidden border border-blue-200 relative">
+                <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-50 overflow-hidden border border-blue-200 relative">
                     {user.avatar_url ? (
                       <Image 
                         src={getAvatarUrl(user.avatar_url) || ""} 
@@ -249,7 +252,7 @@ const Navbar = () => {
               </div>
             </div>
           ) : (
-            <div className="flex items-center gap-3 ml-2 pl-4 border-l border-gray-400">
+            <div className="flex items-center gap-3 ml-2 pl-4 border-l border-gray-300">
               <Link href="/login">
                 <button className="px-5 py-2 text-sm text-[#0B2F5E] font-bold border border-[#0B2F5E] rounded-lg hover:bg-blue-50 transition-colors cursor-pointer">Masuk</button>
               </Link>

@@ -80,8 +80,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/destinations/{id}', [DestinationController::class, 'destroy']);
 
         // 3. Upload & Hapus Galeri (Tambahan)
-        Route::post('/destination-images', [DestinationImageController::class, 'store']);
-        Route::delete('/destination-images/{id}', [DestinationImageController::class, 'destroy']);
+        Route::post('/destinations/{id}/gallery', [DestinationController::class, 'uploadGallery']);
+        Route::delete('/destinations/gallery/{image_id}', [DestinationController::class, 'deleteGalleryImage']);
 
         // 4. INCLUSIONS & ADDONS
         // Tambah Fasilitas

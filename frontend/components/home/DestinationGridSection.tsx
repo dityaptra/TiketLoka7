@@ -9,15 +9,18 @@ export default function DestinationGridSection({ endpoint, title, limit }: { end
   const [destinations, setDestinations] = useState<Destination[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // KONFIGURASI URL API
+  const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+
   // --- Helper: URL Gambar ---
   const getImageUrl = (url: string | null) => {
     if (!url) return 'https://images.unsplash.com/photo-1517400508535-b2a1a062776c?q=80&w=2070';
     if (url.startsWith('http')) return url;
     const cleanPath = url.startsWith('/') ? url.substring(1) : url;
-    if (cleanPath.startsWith('storage/')) {
-       return `http://127.0.0.1:8000/${cleanPath}`;
-    }
-    return `http://127.0.0.1:8000/storage/${cleanPath}`;
+    // Hapus 'storage/' jika sudah ada di path untuk menghindari double prefix
+    const finalPath = cleanPath.startsWith('storage/') ? cleanPath.substring(8) : cleanPath;
+    
+    return `${BASE_URL}/storage/${finalPath}`;
   };
 
   // --- Helper: Format Rupiah ---
@@ -83,20 +86,13 @@ export default function DestinationGridSection({ endpoint, title, limit }: { end
     <section className="py-12 px-4">
       <div className="max-w-7xl mx-auto">
         
-        {/* Header Section */}
-        <div className="flex items-center justify-between mb-10">
-          <div>
-            <h2 className="text-4xl font-bold text-gray-800 mb-2">{title}</h2>
-            <p className="text-gray-600">Tempat wisata terfavorit pilihan traveler</p>
-          </div>
-          {limit && (
-            <Link href="/events" className="text-[#0B2F5E] font-semibold hover:underline flex items-center gap-1">
-              Lihat Semua <ArrowUpRight size={18}/>
-            </Link>
-          )}
+        {/* --- 1. HEADER SECTION (CLEAN) --- */}
+        <div className="mb-10">
+          <h2 className="text-4xl font-bold text-gray-800 mb-2">{title}</h2>
+          <p className="text-gray-600">Tempat wisata terfavorit pilihan traveler</p>
         </div>
         
-        {/* Grid Kartu */}
+        {/* --- 2. GRID KARTU --- */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {destinations.map((item) => (
             <div 
@@ -114,11 +110,10 @@ export default function DestinationGridSection({ endpoint, title, limit }: { end
                   }}
                 />
                 
-                {/* BAGIAN RATING (DIPERBAIKI) */}
+                {/* Rating Badge */}
                 <div className="absolute top-4 right-4 bg-white px-3 py-1.5 rounded-full flex items-center gap-1 shadow-lg z-10">
                   <Star size={14} fill="#F57C00" className="text-[#F57C00]" />
                   <span className="text-sm font-bold text-gray-800">
-                    {/* Mengambil rating dari database, jika null default ke 0 */}
                     {item.rating ? Number(item.rating).toFixed(1) : 'New'}
                   </span>
                 </div>
@@ -143,7 +138,7 @@ export default function DestinationGridSection({ endpoint, title, limit }: { end
                     </p>
                   </div>
                   
-                  {/* Tombol Lihat */}
+                  {/* Tombol Lihat Detail (Kecil di kartu) */}
                   <Link href={`/events/${item.slug}`}>
                     <button className="px-5 py-2.5 bg-[#0B2F5E] text-white rounded-xl font-semibold hover:bg-[#1a457e] transition-colors shadow-md text-sm cursor-pointer">
                       Lihat
@@ -154,6 +149,29 @@ export default function DestinationGridSection({ endpoint, title, limit }: { end
             </div>
           ))}
         </div>
+
+        {/* --- 3. TOMBOL LIHAT SEMUA (POSISI BAWAH) --- */}
+        {/* Hanya muncul jika limit aktif (artinya di Homepage) */}
+        {limit && (
+          <div className="mt-12 flex justify-center">
+            <Link href="/events">
+              <button className="
+                group flex items-center gap-3
+                px-8 py-3.5
+                bg-white border-2 border-[#0B2F5E] text-[#0B2F5E]
+                rounded-full font-bold text-base
+                hover:bg-[#0B2F5E] hover:text-white
+                transition-all duration-300
+                shadow-sm hover:shadow-lg hover:-translate-y-1
+              ">
+                Lihat Semua Destinasi
+                <ArrowUpRight 
+                  className="w-5 h-5 transition-transform duration-300 group-hover:translate-x-1 group-hover:-translate-y-1" 
+                />
+              </button>
+            </Link>
+          </div>
+        )}
 
       </div>
     </section>

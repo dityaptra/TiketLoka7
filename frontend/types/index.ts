@@ -47,6 +47,7 @@ export interface Review {
 
 // --- DESTINATION ---
 export interface Destination {
+  rating: any;
   id: number;
   name: string;
   slug: string; 
