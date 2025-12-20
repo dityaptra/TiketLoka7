@@ -115,15 +115,23 @@ class DestinationController extends Controller
                 'description' => $destination->description,
                 'price' => $destination->price,
                 'location' => $destination->location,
-                'image_url' => $imageUrl, // URL sudah diformat
+                'image_url' => $imageUrl,
                 'is_active' => $destination->is_active,
+
+                // --- TAMBAHKAN BAGIAN INI ---
+                // Agar Next.js bisa membaca data.meta_title
+                'meta_title' => $destination->meta_title,
+                'meta_description' => $destination->meta_description,
+                'meta_keywords' => $destination->meta_keywords,
+                // ----------------------------
                 
-                // Relasi yang sudah dimuat & diformat
                 'images' => $destination->images,
                 'inclusions' => $destination->inclusions,
                 'addons' => $destination->addons,
                 'reviews' => $destination->reviews,
             ],
+            // Bagian 'seo' di bawah ini opsional sekarang karena logicnya sudah kita handle di Frontend
+            // Tapi dibiarkan saja juga tidak apa-apa untuk backup
             'seo' => [
                 'title' => $destination->meta_title ?? $destination->name,
                 'description' => $destination->meta_description ?? Str::limit(strip_tags($destination->description), 150),

@@ -249,7 +249,7 @@ const Navbar = () => {
               </div>
             </div>
           ) : (
-            <div className="flex items-center gap-3 ml-2 pl-4 border-l border-gray-200">
+            <div className="flex items-center gap-3 ml-2 pl-4 border-l border-gray-400">
               <Link href="/login">
                 <button className="px-5 py-2 text-sm text-[#0B2F5E] font-bold border border-[#0B2F5E] rounded-lg hover:bg-blue-50 transition-colors cursor-pointer">Masuk</button>
               </Link>
