@@ -132,7 +132,7 @@ export default function RegisterPage() {
           
           {/* Kolom Kiri: Ilustrasi & Branding */}
           <div className="hidden lg:flex flex-col justify-center items-center bg-[#005eff] relative overflow-hidden p-10 text-center">
-            <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-[#005eff] to-[#0046b0] opacity-100 z-0"></div>
+            <div className="absolute top-0 left-0 w-full h-full bg-linear-to-br from-[#005eff] to-[#0046b0] opacity-100 z-0"></div>
             <div className="absolute -top-24 -left-24 w-64 h-64 bg-white opacity-10 rounded-full blur-3xl"></div>
             <div className="absolute bottom-0 right-0 w-96 h-96 bg-[#002a6b] opacity-20 rounded-full blur-3xl"></div>
 
@@ -308,11 +308,11 @@ export default function RegisterPage() {
 
             <div className="text-center text-[10px] md:text-xs text-gray-500 leading-relaxed px-2 border-t mt-1 pt-4 border-gray-100">
               Dengan mendaftar, Anda menyetujui{" "}
-              <Link href="/terms" className="underline text-[#F57C00]">
+              <Link href="/privacy" className="underline text-[#F57C00]">
                 Kebijakan Privasi
               </Link>{" "}
               dan{" "}
-              <Link href="/privacy" className="underline text-[#F57C00]">
+              <Link href="/terms" className="underline text-[#F57C00]">
                 Syarat & Ketentuan
               </Link>{" "}
               TiketLoka.
